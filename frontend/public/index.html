@@ -1,0 +1,2919 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Clinical Study Extraction System with AI</title>
+    
+    <!-- External Libraries -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@anara-labs/lector/dist/lector.umd.js"></script>
+    
+    <style>
+        /* ===== CSS VARIABLES ===== */
+        :root {
+            --primary-blue: #007bff;
+            --primary-blue-dark: #0056b3;
+            --success-green: #4CAF50;
+            --success-green-light: #8BC34A;
+            --warning-orange: #FF9800;
+            --warning-orange-dark: #F57C00;
+            --error-red: #f44336;
+            --error-red-dark: #c82333;
+            --info-blue: #2196F3;
+            --purple-ai: #9b61f9;
+
+            --gray-100: #f8f9fa;
+            --gray-200: #e9ecef;
+            --gray-300: #dee2e6;
+            --gray-400: #ccc;
+            --gray-500: #666;
+            --gray-600: #525252;
+            --gray-700: #333;
+            --gray-800: #2c3e50;
+            --gray-900: #1976D2;
+
+            --background-light: #f0f2f5;
+            --background-white: #ffffff;
+
+            --spacing-xs: 5px;
+            --spacing-sm: 10px;
+            --spacing-md: 15px;
+            --spacing-lg: 20px;
+            --spacing-xl: 30px;
+
+            --border-radius-sm: 3px;
+            --border-radius-md: 4px;
+            --border-radius-lg: 6px;
+            --border-radius-xl: 8px;
+
+            --shadow-sm: 0 2px 4px rgba(0, 0, 0, 0.1);
+            --shadow-md: 2px 0 5px rgba(0, 0, 0, 0.1);
+            --shadow-lg: 0 4px 6px rgba(0, 0, 0, 0.3);
+            --shadow-xl: 0 4px 12px rgba(0, 0, 0, 0.15);
+
+            --transition-fast: 0.2s;
+            --transition-normal: 0.3s;
+            --transition-slow: 0.4s;
+        }
+
+        /* ===== LAYOUT ===== */
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            height: 100vh;
+            overflow: hidden;
+            background-color: var(--background-light);
+        }
+
+        .main-container {
+            display: flex;
+            height: 100vh;
+        }
+
+        .form-panel {
+            width: 35%;
+            background: var(--background-white);
+            overflow-y: auto;
+            padding: var(--spacing-lg) var(--spacing-xl);
+            box-shadow: var(--shadow-md);
+        }
+
+        .pdf-panel {
+            width: 45%;
+            background: var(--gray-200);
+            display: flex;
+            flex-direction: column;
+            position: relative;
+        }
+
+        .trace-panel {
+            width: 20%;
+            background: var(--background-white);
+            border-left: 1px solid var(--gray-400);
+            overflow-y: auto;
+            padding: var(--spacing-lg);
+        }
+
+        /* ===== TYPOGRAPHY ===== */
+        h1 {
+            color: var(--gray-700);
+            font-size: 24px;
+            margin-bottom: var(--spacing-sm);
+        }
+
+        h2 {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 2px solid var(--primary-blue);
+            padding-bottom: var(--spacing-sm);
+            margin-top: var(--spacing-lg);
+            font-size: 20px;
+        }
+
+        h3 {
+            color: #555;
+            margin-top: var(--spacing-lg);
+            font-size: 16px;
+        }
+
+        h4 {
+            font-size: 14px;
+            margin: var(--spacing-sm) 0;
+        }
+
+        .subtitle {
+            font-size: 14px;
+            color: var(--gray-500);
+            margin-bottom: var(--spacing-md);
+        }
+
+        /* ===== FORMS ===== */
+        .step {
+            display: none;
+        }
+
+        .step.active {
+            display: block;
+        }
+
+        .form-group {
+            margin-bottom: var(--spacing-md);
+            padding: var(--spacing-xs);
+            border-radius: var(--border-radius-md);
+            transition: all var(--transition-normal);
+            position: relative;
+        }
+
+        .form-group.active-extraction {
+            background: #fff3e0 !important;
+            padding: var(--spacing-sm) !important;
+            margin: calc(-1 * var(--spacing-xs)) !important;
+            margin-bottom: var(--spacing-md) !important;
+            border-left: 4px solid var(--warning-orange) !important;
+            animation: pulse 1.5s infinite;
+        }
+
+        .ai-field-group {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+
+        .ai-field-group textarea,
+        .ai-field-group input {
+            flex-grow: 1;
+        }
+
+        label {
+            display: block;
+            font-weight: 600;
+            margin-bottom: var(--spacing-xs);
+            color: var(--gray-700);
+            font-size: 14px;
+        }
+
+        input[type="text"],
+        input[type="number"],
+        textarea,
+        select {
+            width: 100%;
+            padding: 8px 10px;
+            border: 1px solid var(--gray-400);
+            border-radius: var(--border-radius-md);
+            font-size: 14px;
+            font-family: inherit;
+        }
+
+        textarea {
+            resize: vertical;
+            min-height: 60px;
+        }
+
+        /* ===== FIELD STATES ===== */
+        .linked-input {
+            background-color: #f0f8ff;
+            border-color: #b3d7ff;
+        }
+
+        .linked-input.has-extraction {
+            background-color: #e8f5e9;
+            border-color: var(--success-green);
+        }
+
+        .linked-input.ai-populated {
+            background-color: #f3e8ff;
+            border-color: var(--purple-ai);
+        }
+
+        .validation-error {
+            border-color: var(--error-red) !important;
+            background-color: #fff5f5 !important;
+        }
+
+        .validation-message {
+            color: var(--error-red);
+            font-size: 12px;
+            margin-top: 4px;
+            display: none;
+        }
+
+        .validation-error + .validation-message {
+            display: block;
+        }
+
+        /* ===== GRIDS ===== */
+        .grid-2col {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: var(--spacing-md);
+        }
+
+        .grid-3col {
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr;
+            gap: var(--spacing-md);
+        }
+
+        .grid-mrs {
+            display: grid;
+            grid-template-columns: repeat(7, 1fr);
+            gap: var(--spacing-xs);
+        }
+
+        /* ===== DYNAMIC CONTAINERS ===== */
+        .dynamic-container {
+            border: 1px solid #ddd;
+            padding: var(--spacing-md);
+            margin-top: var(--spacing-md);
+            border-radius: var(--border-radius-md);
+            background-color: #f9f9f9;
+        }
+
+        /* ===== PROGRESS BAR ===== */
+        #progress-bar-container {
+            width: 100%;
+            background-color: #e0e0e0;
+            border-radius: var(--border-radius-md);
+            margin-bottom: var(--spacing-lg);
+            overflow: hidden;
+        }
+
+        #progress-bar {
+            width: 0%;
+            height: 10px;
+            background: linear-gradient(90deg, var(--success-green), var(--success-green-light));
+            transition: width var(--transition-slow) ease;
+        }
+
+        /* ===== NAVIGATION ===== */
+        .navigation {
+            position: sticky;
+            bottom: 0;
+            background: var(--background-white);
+            padding: var(--spacing-md) var(--spacing-lg);
+            border-top: 2px solid #ddd;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-top: var(--spacing-xl);
+        }
+
+        #submit-btn-group {
+            display: flex;
+            gap: 10px;
+        }
+
+        /* ===== BUTTONS ===== */
+        button {
+            padding: var(--spacing-sm) var(--spacing-lg);
+            cursor: pointer;
+            border: none;
+            border-radius: var(--border-radius-md);
+            background-color: var(--primary-blue);
+            color: white;
+            font-size: 16px;
+            transition: all var(--transition-normal);
+            font-family: inherit;
+        }
+
+        button:hover {
+            background-color: var(--primary-blue-dark);
+            transform: translateY(-1px);
+        }
+
+        button:disabled {
+            background-color: var(--gray-400);
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .add-btn {
+            background-color: #28a745;
+            font-size: 14px;
+            padding: 6px 12px;
+            margin-top: var(--spacing-sm);
+        }
+
+        .add-btn:hover {
+            background-color: #218838;
+        }
+
+        .remove-btn {
+            background-color: #dc3545;
+            font-size: 14px;
+            padding: 6px 12px;
+            margin-top: var(--spacing-sm);
+        }
+
+        .remove-btn:hover {
+            background-color: var(--error-red-dark);
+        }
+
+        .validate-btn {
+            background-color: #6c757d;
+            color: white;
+            padding: 4px 8px;
+            font-size: 12px;
+        }
+
+        .validate-btn:hover {
+            background-color: #5a6268;
+        }
+
+        .gemini-btn {
+            background: linear-gradient(135deg, #4285F4, var(--purple-ai));
+            color: white;
+            padding: 8px 14px;
+            font-size: 14px;
+            margin: var(--spacing-sm) 0;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+        }
+
+        .gemini-btn:hover {
+            box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+        }
+
+        .gemini-loading {
+            font-size: 13px;
+            color: var(--primary-blue-dark);
+            margin: var(--spacing-sm) 0;
+            font-style: italic;
+        }
+
+        /* ===== PDF VIEWER ===== */
+        .pdf-toolbar {
+            background: var(--gray-800);
+            color: white;
+            padding: var(--spacing-sm);
+            display: flex;
+            gap: var(--spacing-sm);
+            align-items: center;
+            box-shadow: var(--shadow-sm);
+            flex-wrap: wrap;
+        }
+
+        .pdf-toolbar button {
+            background: #34495e;
+            color: white;
+            padding: 6px 12px;
+            font-size: 14px;
+        }
+
+        .pdf-toolbar button:hover {
+            background: #4a5f7f;
+        }
+
+        .pdf-toolbar input[type="number"] {
+            width: 50px;
+            text-align: center;
+            padding: 4px;
+        }
+
+        .pdf-toolbar select {
+            padding: 4px 8px;
+        }
+
+        .toolbar-text {
+            color: white;
+            white-space: nowrap;
+        }
+
+        #active-field-indicator {
+            background: var(--warning-orange);
+            color: black;
+            padding: 4px 12px;
+            border-radius: var(--border-radius-md);
+            margin-left: auto;
+            white-space: nowrap;
+            font-weight: 600;
+        }
+
+        .pdf-container {
+            flex: 1;
+            overflow: auto;
+            background: var(--gray-600);
+            position: relative;
+            padding: var(--spacing-lg) 0;
+            text-align: center;
+        }
+
+        .pdf-page {
+            margin: var(--spacing-lg) auto;
+            background: white;
+            box-shadow: var(--shadow-lg);
+            position: relative;
+            display: inline-block;
+            text-align: left;
+        }
+
+        .upload-area {
+            border: 2px dashed var(--gray-400);
+            border-radius: var(--border-radius-xl);
+            padding: 50px;
+            text-align: center;
+            margin: 50px;
+            background: white;
+            cursor: pointer;
+            transition: all var(--transition-normal);
+        }
+
+        .upload-area:hover {
+            border-color: var(--primary-blue);
+            background: #f0f8ff;
+        }
+
+        .upload-link {
+            cursor: pointer;
+            color: var(--primary-blue);
+            text-decoration: underline;
+        }
+
+        /* ===== TEXT LAYER ===== */
+        .textLayer {
+            position: absolute;
+            left: 0;
+            top: 0;
+            right: 0;
+            bottom: 0;
+            overflow: hidden;
+            opacity: 0.2;
+            line-height: 1;
+        }
+
+        .textLayer > span {
+            color: transparent;
+            position: absolute;
+            white-space: pre;
+            cursor: text;
+            transform-origin: 0% 0%;
+        }
+
+        .textLayer ::selection {
+            background: rgba(0, 123, 255, 0.3);
+        }
+
+        .textLayer.active-selection ::selection {
+            background: rgba(255, 193, 7, 0.4);
+        }
+
+        .textLayer .highlight {
+            background: rgba(255, 193, 7, 0.4) !important;
+        }
+
+        .textLayer .extracted {
+            background: rgba(76, 175, 80, 0.2) !important;
+        }
+
+        /* ===== EXTRACTION MARKERS ===== */
+        .extraction-marker {
+            position: absolute;
+            border: 2px solid var(--success-green);
+            background: rgba(76, 175, 80, 0.15);
+            pointer-events: all;
+            cursor: pointer;
+            box-sizing: border-box;
+        }
+
+        .extraction-marker:hover {
+            background: rgba(76, 175, 80, 0.3);
+            z-index: 1000;
+        }
+
+        .extraction-marker::before {
+            content: attr(data-field);
+            position: absolute;
+            top: -24px;
+            left: 0;
+            background: var(--success-green);
+            color: white;
+            padding: 2px 8px;
+            font-size: 11px;
+            border-radius: var(--border-radius-sm);
+            white-space: nowrap;
+            opacity: 0;
+            transition: opacity var(--transition-normal);
+            z-index: 1001;
+            pointer-events: none;
+        }
+
+        .extraction-marker[data-method^="gemini"] {
+            border-color: var(--purple-ai);
+            background: rgba(155, 97, 249, 0.15);
+        }
+
+        .extraction-marker[data-method^="gemini"]::before {
+            background: var(--purple-ai);
+        }
+
+        .extraction-marker[data-method^="gemini"]:hover {
+            background: rgba(155, 97, 249, 0.3);
+        }
+
+        .extraction-marker:hover::before {
+            opacity: 1;
+        }
+
+        /* ===== TRACE PANEL ===== */
+        .trace-title {
+            font-size: 18px;
+            margin-top: 0;
+            margin-bottom: var(--spacing-md);
+        }
+
+        .trace-entry {
+            background: var(--gray-100);
+            border: 1px solid var(--gray-300);
+            border-radius: var(--border-radius-md);
+            padding: var(--spacing-sm);
+            margin-bottom: var(--spacing-sm);
+            cursor: pointer;
+            transition: all var(--transition-fast);
+            font-size: 12px;
+        }
+
+        .trace-entry[data-method^="gemini"] {
+            border-left: 4px solid var(--purple-ai);
+        }
+
+        .trace-entry[data-method^="manual"] {
+            border-left: 4px solid var(--success-green);
+        }
+
+        .trace-entry:hover {
+            background: #e3f2fd;
+            border-color: var(--info-blue);
+            transform: translateX(3px);
+        }
+
+        .trace-entry .field-label {
+            font-weight: bold;
+            color: var(--gray-900);
+            display: block;
+            margin-bottom: 4px;
+        }
+
+        .trace-entry .extracted-text {
+            color: var(--gray-700);
+            font-size: 11px;
+            margin: 6px 0;
+            padding: 4px;
+            background: white;
+            border-left: 3px solid var(--gray-400);
+            display: block;
+            word-wrap: break-word;
+        }
+
+        .trace-entry[data-method^="manual"] .extracted-text {
+            border-left-color: var(--success-green);
+        }
+
+        .trace-entry[data-method^="gemini"] .extracted-text {
+            border-left-color: var(--purple-ai);
+        }
+
+        .trace-entry .metadata {
+            font-size: 10px;
+            color: var(--gray-500);
+            text-transform: capitalize;
+        }
+
+        /* ===== EXPORT SECTION ===== */
+        .export-section {
+            background: #f0f8ff;
+            padding: 12px;
+            border-radius: var(--border-radius-lg);
+            margin-bottom: var(--spacing-md);
+        }
+
+        .export-buttons {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 8px;
+        }
+
+        .export-buttons button {
+            padding: 6px;
+            font-size: 11px;
+        }
+
+        .export-json { background: var(--success-green); }
+        .export-csv { background: var(--info-blue); }
+        .export-audit { background: var(--warning-orange); }
+        .export-pdf { background: #9C27B0; }
+
+        /* ===== MARKDOWN SECTION ===== */
+        .markdown-section {
+            background: #fff3e0;
+            padding: 12px;
+            border-radius: var(--border-radius-lg);
+            margin-bottom: var(--spacing-md);
+            border: 1px solid var(--warning-orange);
+        }
+
+        .markdown-section h4 {
+            color: var(--warning-orange);
+        }
+
+        .markdown-section button {
+            padding: 6px 12px;
+            font-size: 12px;
+            background: var(--warning-orange);
+            margin-right: var(--spacing-xs);
+        }
+
+        .markdown-section button:hover {
+            background: var(--warning-orange-dark);
+        }
+
+        #markdown-status {
+            font-size: 11px;
+            margin-top: var(--spacing-xs);
+            color: var(--gray-500);
+        }
+
+        .search-interface {
+            margin-top: var(--spacing-sm);
+            padding: var(--spacing-sm);
+            background: white;
+            border-radius: var(--border-radius-md);
+            display: none;
+        }
+
+        .search-interface.active {
+            display: block;
+        }
+
+        .search-interface textarea {
+            width: 100%;
+            height: 80px;
+            margin-bottom: 8px;
+            font-size: 12px;
+        }
+
+        .search-results {
+            max-height: 200px;
+            overflow-y: auto;
+            margin-top: var(--spacing-sm);
+        }
+
+        .search-answer {
+            background: #f0f8ff;
+            border: 1px solid var(--primary-blue);
+            border-radius: var(--border-radius-md);
+            padding: var(--spacing-sm);
+            font-size: 13px;
+            margin-bottom: var(--spacing-sm);
+        }
+
+        .search-source {
+            font-size: 11px;
+            color: var(--gray-500);
+            border-left: 3px solid var(--gray-300);
+            padding-left: var(--spacing-sm);
+            margin-top: var(--spacing-sm);
+            white-space: pre-wrap;
+            word-wrap: break-word;
+            max-height: 100px;
+            overflow-y: auto;
+        }
+
+        /* ===== STATS ===== */
+        .stats-container {
+            background: #f5f5f5;
+            padding: var(--spacing-sm);
+            border-radius: var(--border-radius-md);
+            margin-bottom: var(--spacing-md);
+        }
+
+        .stats-row {
+            display: flex;
+            justify-content: space-between;
+            font-size: 13px;
+        }
+
+        .stats-row + .stats-row {
+            margin-top: var(--spacing-xs);
+        }
+
+        /* ===== STATUS MESSAGE ===== */
+        .extraction-status {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            background: white;
+            padding: 15px 20px;
+            border-radius: var(--border-radius-xl);
+            box-shadow: var(--shadow-xl);
+            display: none;
+            z-index: 1000;
+            max-width: 400px;
+            word-wrap: break-word;
+        }
+
+        .extraction-status.show {
+            display: block;
+            animation: slideUp var(--transition-normal);
+        }
+
+        /* ===== LOADING SPINNER ===== */
+        .loading-spinner {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            z-index: 9999;
+            display: none;
+            background-color: rgba(255, 255, 255, 0.9);
+            padding: 20px;
+            border-radius: var(--border-radius-lg);
+        }
+
+        .loading-spinner.active {
+            display: block;
+        }
+
+        .spinner {
+            width: 50px;
+            height: 50px;
+            border: 5px solid #f3f3f3;
+            border-top: 5px solid var(--primary-blue);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        /* ===== UTILITIES ===== */
+        .hidden {
+            display: none !important;
+        }
+
+        .full-width {
+            width: 100%;
+        }
+
+        input[type="file"] {
+            display: none;
+        }
+
+        /* ===== ANIMATIONS ===== */
+        @keyframes pulse {
+            0%, 100% { background: #fff3e0; }
+            50% { background: #ffe0b2; }
+        }
+
+        @keyframes slideUp {
+            from {
+                transform: translateY(100px);
+                opacity: 0;
+            }
+            to {
+                transform: translateY(0);
+                opacity: 1;
+            }
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        /* ===== RESPONSIVE ADJUSTMENTS ===== */
+        @media (max-width: 1400px) {
+            .form-panel { width: 30%; }
+            .pdf-panel { width: 50%; }
+            .trace-panel { width: 20%; }
+        }
+
+        @media (max-width: 1024px) {
+            .main-container { flex-direction: column; }
+            .form-panel, .pdf-panel, .trace-panel { width: 100%; height: auto; }
+        }
+    </style>
+</head>
+<body>
+    <div class="main-container">
+        <!-- FORM PANEL (Left) -->
+        <div class="form-panel">
+            <h1>🧠 Clinical Study Master Extraction</h1>
+            <p class="subtitle">
+                AI-powered extraction with full provenance tracking. Click a field, then highlight text in the PDF or use the ✨ AI buttons.
+            </p>
+
+            <!-- Progress Bar -->
+            <div id="progress-bar-container">
+                <div id="progress-bar"></div>
+            </div>
+
+            <!-- Main Form -->
+            <form id="extraction-form">
+                <!-- Step 1: Study ID -->
+                <div class="step active" id="step-1">
+                    <h2>Step 1: Study Identification</h2>
+                    <div class="form-group">
+                        <label for="citation">Full Citation (Required)</label>
+                        <div class="ai-field-group">
+                            <textarea id="citation" name="citation" class="linked-input" placeholder="Paste citation or title..." required></textarea>
+                            <button type="button" class="gemini-btn" title="Find Metadata with AI Search" onclick="findMetadata()" style="padding: 8px 12px; margin: 0;">✨</button>
+                        </div>
+                        <div id="metadata-loading" class="gemini-loading" style="display: none;">✨ Searching for metadata...</div>
+                    </div>
+                    <div class="grid-2col">
+                        <div class="form-group">
+                            <label for="doi">DOI</label>
+                            <input type="text" id="doi" name="doi" class="linked-input" data-validation="doi" placeholder="10.xxxx/xxxxx">
+                            <span class="validation-message">Invalid DOI format</span>
+                        </div>
+                        <div class="form-group">
+                            <label for="pmid">PMID</label>
+                            <input type="text" id="pmid" name="pmid" class="linked-input" data-validation="pmid" placeholder="12345678">
+                            <span class="validation-message">PMID must be numeric</span>
+                        </div>
+                    </div>
+                    <div class="grid-3col">
+                        <div class="form-group">
+                            <label for="journal">Journal</label>
+                            <input type="text" id="journal" name="journal" class="linked-input">
+                        </div>
+                        <div class="form-group">
+                            <label for="year">Year</label>
+                            <input type="number" id="year" name="year" class="linked-input" data-validation="year" placeholder="2024">
+                            <span class="validation-message">Invalid year (1900-2100)</span>
+                        </div>
+                        <div class="form-group">
+                            <label for="country">Country</label>
+                            <input type="text" id="country" name="country" class="linked-input">
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label for="centers">Centers</label>
+                        <input type="text" id="centers" name="centers" class="linked-input" placeholder="e.g., Single-center, Multi-center">
+                    </div>
+                    <div class="form-group">
+                        <label for="funding">Funding Sources</label>
+                        <textarea id="funding" name="funding" class="linked-input"></textarea>
+                    </div>
+                    <div class="form-group">
+                        <label for="conflicts">Conflicts of Interest</label>
+                        <textarea id="conflicts" name="conflicts" class="linked-input"></textarea>
+                    </div>
+                    <div class="form-group">
+                        <label for="registration">Trial Registration ID</label>
+                        <input type="text" id="registration" name="registration" class="linked-input" placeholder="NCT########">
+                    </div>
+                </div>
+
+                <!-- Step 2: PICO-T -->
+                <div class="step" id="step-2">
+                    <h2>Step 2: PICO-T Framework</h2>
+                    <button type="button" class="gemini-btn full-width" onclick="generatePICO()">✨ Auto-Generate PICO-T Summary</button>
+                    <div id="pico-loading" class="gemini-loading" style="display: none;">✨ Generating PICO-T...</div>
+
+                    <div class="form-group">
+                        <label for="eligibility-population">Population</label>
+                        <div class="ai-field-group">
+                            <textarea id="eligibility-population" name="eligibility-population" class="linked-input"></textarea>
+                            <button type="button" class="validate-btn" title="Validate with AI" onclick="validateFieldWithAI('eligibility-population')">✓</button>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label for="eligibility-intervention">Intervention</label>
+                        <div class="ai-field-group">
+                            <textarea id="eligibility-intervention" name="eligibility-intervention" class="linked-input"></textarea>
+                            <button type="button" class="validate-btn" title="Validate with AI" onclick="validateFieldWithAI('eligibility-intervention')">✓</button>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label for="eligibility-comparator">Comparator</label>
+                        <div class="ai-field-group">
+                            <textarea id="eligibility-comparator" name="eligibility-comparator" class="linked-input"></textarea>
+                            <button type="button" class="validate-btn" title="Validate with AI" onclick="validateFieldWithAI('eligibility-comparator')">✓</button>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label for="eligibility-outcomes">Outcomes Measured</label>
+                        <div class="ai-field-group">
+                            <textarea id="eligibility-outcomes" name="eligibility-outcomes" class="linked-input"></textarea>
+                            <button type="button" class="validate-btn" title="Validate with AI" onclick="validateFieldWithAI('eligibility-outcomes')">✓</button>
+                        </div>
+                    </div>
+                    <div class="grid-2col">
+                        <div class="form-group">
+                            <label for="eligibility-timing">Timing/Follow-up</label>
+                            <div class="ai-field-group">
+                                <input type="text" id="eligibility-timing" name="eligibility-timing" class="linked-input">
+                                <button type="button" class="validate-btn" title="Validate with AI" onclick="validateFieldWithAI('eligibility-timing')">✓</button>
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label for="eligibility-type">Study Type</label>
+                            <div class="ai-field-group">
+                                <input type="text" id="eligibility-type" name="eligibility-type" class="linked-input" placeholder="e.g., RCT, Cohort">
+                                <button type="button" class="validate-btn" title="Validate with AI" onclick="validateFieldWithAI('eligibility-type')">✓</button>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label for="inclusion-met">Inclusion Criteria Met?</label>
+                        <select id="inclusion-met" name="inclusion-met" required>
+                            <option value="">Select...</option>
+                            <option value="true">✓ Yes</option>
+                            <option value="false">✗ No (Stop Extraction)</option>
+                        </select>
+                    </div>
+                </div>
+
+                <!-- Step 3: Baseline -->
+                <div class="step" id="step-3">
+                    <h2>Step 3: Baseline Characteristics</h2>
+                    <button type="button" class="gemini-btn full-width" onclick="findBaselineData()">✨ Auto-Extract Baseline Data</button>
+                    <div id="baseline-loading" class="gemini-loading" style="display: none;">✨ Extracting baseline data...</div>
+
+                    <h3>Sample Size</h3>
+                    <div class="grid-3col">
+                        <div class="form-group">
+                            <label for="totalN">Total N (Required)</label>
+                            <input type="number" id="totalN" name="totalN" class="linked-input" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="surgicalN">Surgical N</label>
+                            <input type="number" id="surgicalN" name="surgicalN" class="linked-input">
+                        </div>
+                        <div class="form-group">
+                            <label for="controlN">Control N</label>
+                            <input type="number" id="controlN" name="controlN" class="linked-input">
+                        </div>
+                    </div>
+                    
+                    <h3>Age Demographics</h3>
+                    <div class="dynamic-container">
+                        <div class="grid-2col">
+                            <div class="form-group">
+                                <label for="ageMean">Age Mean</label>
+                                <input type="number" step="0.1" id="ageMean" name="ageMean" class="linked-input">
+                            </div>
+                            <div class="form-group">
+                                <label for="ageSD">Age SD</label>
+                                <input type="number" step="0.1" id="ageSD" name="ageSD" class="linked-input">
+                            </div>
+                        </div>
+                        <div class="grid-3col">
+                            <div class="form-group">
+                                <label for="ageMedian">Age Median</label>
+                                <input type="number" step="0.1" id="ageMedian" name="ageMedian" class="linked-input">
+                            </div>
+                            <div class="form-group">
+                                <label for="ageIQR_lower">Age IQR (Q1)</label>
+                                <input type="number" step="0.1" id="ageIQR_lower" name="ageIQR_lower" class="linked-input">
+                            </div>
+                            <div class="form-group">
+                                <label for="ageIQR_upper">Age IQR (Q3)</label>
+                                <input type="number" step="0.1" id="ageIQR_upper" name="ageIQR_upper" class="linked-input">
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <h3>Gender Distribution</h3>
+                    <div class="grid-2col">
+                        <div class="form-group">
+                            <label for="maleN">Male N</label>
+                            <input type="number" id="maleN" name="maleN" class="linked-input">
+                        </div>
+                        <div class="form-group">
+                            <label for="femaleN">Female N</label>
+                            <input type="number" id="femaleN" name="femaleN" class="linked-input">
+                        </div>
+                    </div>
+                    
+                    <h3>Baseline Clinical Scores</h3>
+                    <div class="grid-3col">
+                        <div class="form-group">
+                            <label for="prestrokeMRS">Pre-stroke mRS</label>
+                            <input type="number" step="0.1" id="prestrokeMRS" name="prestrokeMRS" class="linked-input">
+                        </div>
+                        <div class="form-group">
+                            <label for="nihssMean">NIHSS Mean/Median</label>
+                            <input type="number" step="0.1" id="nihssMean" name="nihssMean" class="linked-input">
+                        </div>
+                        <div class="form-group">
+                            <label for="gcsMean">GCS Mean/Median</label>
+                            <input type="number" step="0.1" id="gcsMean" name="gcsMean" class="linked-input">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Step 4: Imaging -->
+                <div class="step" id="step-4">
+                    <h2>Step 4: Imaging Findings</h2>
+                    <div class="form-group">
+                        <label for="vascularTerritory">Vascular Territory</label>
+                        <input type="text" id="vascularTerritory" name="vascularTerritory" class="linked-input" placeholder="e.g., PICA, SCA">
+                    </div>
+                    <div class="grid-2col">
+                        <div class="form-group">
+                            <label for="infarctVolume">Infarct Volume (mL)</label>
+                            <input type="number" step="0.1" id="infarctVolume" name="infarctVolume" class="linked-input">
+                        </div>
+                        <div class="form-group">
+                            <label for="strokeVolumeCerebellum">Stroke Volume (% Cerebellum)</label>
+                            <input type="text" id="strokeVolumeCerebellum" name="strokeVolumeCerebellum" class="linked-input">
+                        </div>
+                    </div>
+                    
+                    <h3>Edema Dynamics</h3>
+                    <div class="form-group">
+                        <label for="edemaDynamics">Edema Description</label>
+                        <textarea id="edemaDynamics" name="edemaDynamics" class="linked-input"></textarea>
+                    </div>
+                    <div class="form-group">
+                        <label for="peakSwellingWindow">Peak Swelling Window</label>
+                        <input type="text" id="peakSwellingWindow" name="peakSwellingWindow" class="linked-input" placeholder="e.g., 24-96 hours">
+                    </div>
+                    
+                    <h3>Involvement Areas</h3>
+                    <div class="grid-3col">
+                        <div class="form-group">
+                            <label for="brainstemInvolvement">Brainstem</label>
+                            <select id="brainstemInvolvement" name="brainstemInvolvement">
+                                <option value="null">Unknown</option>
+                                <option value="true">Yes</option>
+                                <option value="false">No</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label for="supratentorialInvolvement">Supratentorial</label>
+                            <select id="supratentorialInvolvement" name="supratentorialInvolvement">
+                                <option value="null">Unknown</option>
+                                <option value="true">Yes</option>
+                                <option value="false">No</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label for="nonCerebellarStroke">Non-cerebellar</label>
+                            <select id="nonCerebellarStroke" name="nonCerebellarStroke">
+                                <option value="null">Unknown</option>
+                                <option value="true">Yes</option>
+                                <option value="false">No</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Step 5: Interventions -->
+                <div class="step" id="step-5">
+                    <h2>Step 5: Interventions</h2>
+                    <h3>Surgical Indications</h3>
+                    <div id="indications-container"></div>
+                    <button type="button" class="add-btn full-width" onclick="addIndication()">+ Add Indication</button>
+                    
+                    <h3>Intervention Details</h3>
+                    <div id="interventions-container"></div>
+                    <button type="button" class="add-btn full-width" onclick="addIntervention()">+ Add Intervention Type</button>
+                </div>
+
+                <!-- Step 6: Study Arms -->
+                <div class="step" id="step-6">
+                    <h2>Step 6: Study Arms</h2>
+                    <p class="subtitle">Define the distinct groups for comparison (e.g., surgical vs. medical).</p>
+                    <div id="arms-container"></div>
+                    <button type="button" class="add-btn full-width" onclick="addArm()">+ Add Study Arm</button>
+                </div>
+
+                <!-- Step 7: Outcomes -->
+                <div class="step" id="step-7">
+                    <h2>Step 7: Outcomes</h2>
+                    <h3>Mortality Data</h3>
+                    <div id="mortality-global-container"></div>
+                    <button type="button" class="add-btn full-width" onclick="addMortality()">+ Add Mortality Data</button>
+                    
+                    <h3>Modified Rankin Scale (mRS)</h3>
+                    <div id="mrs-global-container"></div>
+                    <button type="button" class="add-btn full-width" onclick="addMRS()">+ Add mRS Data</button>
+                </div>
+
+                <!-- Step 8: Complications & Summary -->
+                <div class="step" id="step-8">
+                    <h2>Step 8: Complications & Summary</h2>
+                    
+                    <h3>Complications</h3>
+                    <div id="complications-container"></div>
+                    <button type="button" class="add-btn full-width" onclick="addComplication()">+ Add Complication</button>
+                    
+                    <h3>Key Findings Summary</h3>
+                    <div class="form-group">
+                        <label for="predictorsPoorOutcomeSurgical">Summary of Key Findings / Predictors</label>
+                        <button type="button" class="gemini-btn full-width" onclick="generateSummary()">✨ Auto-Generate Summary</button>
+                        <div id="summary-loading" class="gemini-loading" style="display: none;">✨ Generating Summary...</div>
+                        <div class="ai-field-group">
+                            <textarea id="predictorsPoorOutcomeSurgical" name="predictorsPoorOutcomeSurgical" class="linked-input" rows="6"></textarea>
+                            <button type="button" class="validate-btn" title="Validate with AI" onclick="validateFieldWithAI('predictorsPoorOutcomeSurgical')">✓</button>
+                        </div>
+                    </div>
+                    
+                    <h4>Predictor Analysis</h4>
+                    <div id="predictors-container"></div>
+                    <button type="button" class="add-btn full-width" onclick="addPredictor()">+ Add Predictor</button>
+                </div>
+            </form>
+
+            <!-- Navigation -->
+            <div class="navigation">
+                <div id="step-indicator">Step 1 of 8</div>
+                <div>
+                    <button id="prev-btn" disabled>← Previous</button>
+                    <button id="next-btn">Next →</button>
+                    <div id="submit-btn-group" class="hidden">
+                        <button id="submit-gsheets-btn" onclick="handleSubmitToGoogleSheets(event)">💾 Save to Google Sheets</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- PDF PANEL (Center) -->
+        <div class="pdf-panel">
+            <div class="pdf-toolbar">
+                <button id="pdf-upload-btn">📄 Load PDF</button>
+                <input type="file" id="pdf-file" accept=".pdf">
+                <button id="pdf-prev-page">◄</button>
+                <span class="toolbar-text">
+                    Page <input type="number" id="page-num" value="1" min="1">
+                    of <span id="total-pages">0</span>
+                </span>
+                <button id="pdf-next-page">►</button>
+                <select id="zoom-level">
+                    <option value="0.75">75%</option>
+                    <option value="1" selected>100%</option>
+                    <option value="1.25">125%</option>
+                    <option value="1.5">150%</option>
+                </select>
+                <button id="fit-width">Fit Width</button>
+                <span id="active-field-indicator">No field selected</span>
+            </div>
+            <div id="pdf-container" class="pdf-container">
+                <div id="upload-area" class="upload-area">
+                    <h3>📄 Drop PDF file here or click to browse</h3>
+                    <label for="pdf-file-2" class="upload-link">Select PDF File</label>
+                    <input type="file" id="pdf-file-2" accept=".pdf">
+                </div>
+                <div id="pdf-pages" style="display: none;"></div>
+            </div>
+        </div>
+
+        <!-- TRACE PANEL (Right) -->
+        <div class="trace-panel">
+            <h2 class="trace-title">📋 Extraction Log</h2>
+            
+            <div class="markdown-section">
+                <h4>📝 Markdown Assistant</h4>
+                <button onclick="document.getElementById('markdown-file').click()">Load Markdown</button>
+                <button onclick="toggleSearchInterface()">Search Text</button>
+                <input type="file" id="markdown-file" accept=".md,.txt">
+                <div id="markdown-status">No markdown file loaded.</div>
+                <div id="search-interface" class="search-interface">
+                    <textarea id="search-query" placeholder="Ask a question about the PDF..."></textarea>
+                    <button onclick="askPDF()" class="full-width gemini-btn" style="margin: 0; padding: 8px;">✨ Ask PDF</button>
+                    <div id="search-results" class="search-results"></div>
+                </div>
+            </div>
+            
+            <div class="export-section">
+                <h4>Export Options</h4>
+                <div class="export-buttons">
+                    <button onclick="exportJSON()" class="export-json">📄 JSON</button>
+                    <button onclick="exportCSV()" class="export-csv">📊 CSV</button>
+                    <button onclick="exportAudit()" class="export-audit">📋 Audit</button>
+                    <button onclick="exportAnnotatedPDF()" class="export-pdf">📑 PDF</button>
+                </div>
+            </div>
+            
+            <div class="stats-container">
+                <div class="stats-row">
+                    <span>Total Extractions:</span>
+                    <strong id="extraction-count">0</strong>
+                </div>
+                <div class="stats-row">
+                    <span>Pages with Data:</span>
+                    <strong id="pages-with-data">0</strong>
+                </div>
+            </div>
+            
+            <div id="trace-log"></div>
+        </div>
+    </div>
+
+    <!-- Status Message -->
+    <div id="extraction-status" class="extraction-status">
+        <span id="status-message"></span>
+    </div>
+
+    <!-- Loading Spinner -->
+    <div class="loading-spinner" id="loading-spinner">
+        <div class="spinner"></div>
+    </div>
+
+    <!-- APPLICATION LOGIC -->
+    <script type="module">
+        // ==================== CONFIGURATION ====================
+        // 🔧 IMPORTANT: Configure your API keys here before using
+        const CONFIG = {
+            // Gemini API Key (Required for AI features)
+            // Get your key from: https://aistudio.google.com/
+            GEMINI_API_KEY: "", // 👈 PASTE YOUR GEMINI API KEY HERE
+            
+            // Google Sheets Integration (Optional)
+            GOOGLE_API_KEY: "", // Your Google Cloud API Key
+            GOOGLE_CLIENT_ID: "", // Your OAuth 2.0 Client ID
+            GOOGLE_SHEET_ID: "", // Your Google Sheet ID
+            GOOGLE_SCOPES: "https://www.googleapis.com/auth/spreadsheets"
+        };
+        
+        const PDFConfig = {
+            workerSrc: 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js',
+            documentOptions: {
+                cMapUrl: 'https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/cmaps/',
+                cMapPacked: true
+            }
+        };
+
+        // ==================== INITIALIZATION ====================
+        let gapiLoaded = false;
+        let gapiTokenClient;
+        
+        window.gapiLoaded = () => { 
+            gapiLoaded = true; 
+            console.log("✓ Google API loaded"); 
+        };
+        
+        window.gisLoaded = () => {
+            if (CONFIG.GOOGLE_CLIENT_ID) {
+                gapiTokenClient = google.accounts.oauth2.initTokenClient({
+                    client_id: CONFIG.GOOGLE_CLIENT_ID,
+                    scope: CONFIG.GOOGLE_SCOPES,
+                    callback: ''
+                });
+                console.log("✓ Google Auth initialized");
+            }
+        };
+        
+        // Load Google scripts
+        (function() {
+            const gapiScript = document.createElement('script');
+            gapiScript.src = 'https://apis.google.com/js/api.js?onload=gapiLoaded';
+            gapiScript.async = true;
+            gapiScript.defer = true;
+            document.head.appendChild(gapiScript);
+
+            const gisScript = document.createElement('script');
+            gisScript.src = 'https://accounts.google.com/gsi/client?onload=gisLoaded';
+            gisScript.async = true;
+            gisScript.defer = true;
+            document.head.appendChild(gisScript);
+        })();
+
+        // ==================== STATE MANAGEMENT ====================
+        let AppState = {
+            pdfDoc: null,
+            lector: null,
+            currentPage: 1,
+            totalPages: 0,
+            scale: 1.0,
+            activeField: null,
+            activeFieldElement: null,
+            documentName: '',
+            extractions: [],
+            currentStep: 0,
+            totalSteps: 8,
+            markdownContent: '',
+            markdownLoaded: false,
+            pdfTextCache: new Map(),
+            searchMarkers: [],
+            maxCacheSize: 50,
+            isProcessing: false,
+            lastSubmissionId: null
+        };
+
+        const subscribers = new Set();
+        const AppStateManager = {
+            getState: () => ({ ...AppState }),
+            setState: (updates) => {
+                AppState = { ...AppState, ...updates };
+                subscribers.forEach(cb => cb(AppState));
+            },
+            subscribe: (cb) => {
+                subscribers.add(cb);
+                return () => subscribers.delete(cb);
+            }
+        };
+
+        // ==================== UTILITIES ====================
+        const StatusManager = {
+            statusDiv: document.getElementById('extraction-status'),
+            messageSpan: document.getElementById('status-message'),
+            spinnerDiv: document.getElementById('loading-spinner'),
+            timeoutId: null,
+            
+            show: function(message, type = 'info', duration = 3000) {
+                if (!this.statusDiv || !this.messageSpan) return;
+                if (this.timeoutId) clearTimeout(this.timeoutId);
+
+                this.messageSpan.textContent = message;
+                this.statusDiv.className = 'extraction-status show';
+                const colors = { 
+                    success: '#4CAF50', 
+                    warning: '#FF9800', 
+                    error: '#f44336', 
+                    info: '#2196F3' 
+                };
+                this.statusDiv.style.background = colors[type] || colors.info;
+                this.statusDiv.style.color = 'white';
+
+                this.timeoutId = setTimeout(() => {
+                    this.statusDiv?.classList.remove('show');
+                    this.timeoutId = null;
+                }, duration);
+            },
+            
+            showLoading: function(show) {
+                this.spinnerDiv?.classList.toggle('active', show);
+            }
+        };
+
+        const SecurityUtils = {
+            sanitizeText: (text) => {
+                if (!text) return '';
+                const div = document.createElement('div');
+                div.textContent = text;
+                return div.innerHTML.replace(/<[^>]*>?/gm, '').trim().substring(0, 10000);
+            },
+            
+            validateExtraction: (extraction) => {
+                return extraction && extraction.fieldName && extraction.text && 
+                       extraction.coordinates && extraction.page >= 0;
+            },
+            
+            escapeHtml: (text) => {
+                if (typeof text !== 'string') return '';
+                const div = document.createElement('div');
+                div.textContent = text;
+                return div.innerHTML;
+            },
+            
+            validateInput: (input) => {
+                const validationType = input.dataset.validation;
+                const value = input.value.trim();
+
+                if (input.required && !value) {
+                    return { valid: false, message: 'This field is required' };
+                }
+
+                if (validationType === 'doi' && value) {
+                    const doiRegex = /^10\.\d{4,}\/[-._;()/:a-zA-Z0-9]+$/;
+                    if (!doiRegex.test(value)) 
+                        return { valid: false, message: 'Invalid DOI format' };
+                }
+                
+                if (validationType === 'pmid' && value) {
+                    if (!/^\d+$/.test(value)) 
+                        return { valid: false, message: 'PMID must be numeric' };
+                }
+                
+                if (validationType === 'year' && value) {
+                    const year = parseInt(value);
+                    if (isNaN(year) || year < 1900 || year > 2100) 
+                        return { valid: false, message: 'Invalid year (1900-2100)' };
+                }
+
+                return { valid: true };
+            }
+        };
+
+        // ==================== PDF HANDLING ====================
+        function initializePdfJs() {
+            if (window.pdfjsLib) {
+                window.pdfjsLib.GlobalWorkerOptions.workerSrc = PDFConfig.workerSrc;
+                console.log("✓ PDF.js configured");
+            } else {
+                console.error("✗ PDF.js not loaded");
+                StatusManager.show("PDF library failed to load. Please refresh.", "error", 10000);
+            }
+        }
+
+        const PDFLoader = {
+            loadPDF: async (file) => {
+                AppStateManager.setState({ isProcessing: true });
+                StatusManager.showLoading(true);
+                
+                try {
+                    const arrayBuffer = await file.arrayBuffer();
+                    
+                    // Initialize Lector for AI processing
+                    const geminiApiKey = CONFIG.GEMINI_API_KEY;
+                    if (!geminiApiKey) {
+                        StatusManager.show("⚠️ Gemini API Key missing. Add it to CONFIG.GEMINI_API_KEY for AI features.", "warning", 8000);
+                    }
+                    
+                    let lector = null;
+                    if (geminiApiKey && window.Lector) {
+                        StatusManager.show('Processing document with Lector AI...', 'info');
+                        lector = new window.Lector({ apiKey: geminiApiKey });
+                        await lector.process(file);
+                        StatusManager.show('✓ Lector processing complete', 'success');
+                    }
+                    
+                    // Load PDF for rendering
+                    const pdfDoc = await window.pdfjsLib.getDocument({
+                        data: arrayBuffer.slice(0),
+                        ...PDFConfig.documentOptions
+                    }).promise;
+                    
+                    const sanitizedName = SecurityUtils.sanitizeText(file.name);
+
+                    AppStateManager.setState({
+                        pdfDoc,
+                        lector,
+                        totalPages: pdfDoc.numPages,
+                        documentName: sanitizedName,
+                        isProcessing: false,
+                        pdfTextCache: new Map()
+                    });
+
+                    document.getElementById('total-pages').textContent = pdfDoc.numPages.toString();
+                    document.getElementById('upload-area').style.display = 'none';
+                    document.getElementById('pdf-pages').style.display = 'block';
+
+                    StatusManager.showLoading(false);
+                    StatusManager.show('✓ PDF loaded successfully', 'success');
+                    await PDFRenderer.renderPage(1);
+                    
+                } catch (error) {
+                    console.error("PDF Load Error:", error);
+                    StatusManager.showLoading(false);
+                    StatusManager.show(`Failed to load PDF: ${error.message}`, 'error');
+                    AppStateManager.setState({ isProcessing: false });
+                }
+            }
+        };
+
+        const PDFRenderer = {
+            renderPage: async (pageNum) => {
+                const state = AppStateManager.getState();
+                if (!state.pdfDoc || state.isProcessing) return;
+                
+                if (!window.pdfjsLib) {
+                    StatusManager.show("PDF library not ready", "error");
+                    return;
+                }
+
+                AppStateManager.setState({ isProcessing: true });
+                StatusManager.showLoading(true);
+
+                try {
+                    const page = await state.pdfDoc.getPage(pageNum);
+                    const viewport = page.getViewport({ scale: state.scale });
+                    const container = document.getElementById('pdf-pages');
+                    if (!container) return;
+                    
+                    container.innerHTML = '';
+
+                    const pageDiv = document.createElement('div');
+                    pageDiv.className = 'pdf-page';
+                    pageDiv.style.width = viewport.width + 'px';
+                    pageDiv.style.height = viewport.height + 'px';
+
+                    const canvas = document.createElement('canvas');
+                    const context = canvas.getContext('2d');
+                    canvas.width = viewport.width;
+                    canvas.height = viewport.height;
+
+                    await page.render({ 
+                        canvasContext: context, 
+                        viewport: viewport 
+                    }).promise;
+                    
+                    pageDiv.appendChild(canvas);
+
+                    // Create Text Layer
+                    const textContent = await page.getTextContent();
+                    const textLayer = document.createElement('div');
+                    textLayer.className = 'textLayer';
+                    const textItems = [];
+
+                    textContent.items.forEach(item => {
+                        if (!item.str || !item.str.trim()) return;
+                        
+                        const span = document.createElement('span');
+                        span.textContent = item.str;
+                        const tx = window.pdfjsLib.Util.transform(viewport.transform, item.transform);
+                        
+                        span.style.left = tx[4] + 'px';
+                        span.style.top = tx[5] + 'px';
+                        span.style.fontSize = Math.sqrt((tx[0] * tx[0]) + (tx[1] * tx[1])) + 'px';
+                        
+                        span.dataset.x = tx[4];
+                        span.dataset.y = tx[5];
+                        span.dataset.width = item.width * state.scale;
+                        span.dataset.height = item.height * state.scale;
+
+                        textLayer.appendChild(span);
+                        textItems.push({ 
+                            element: span, 
+                            x: tx[4], 
+                            y: tx[5], 
+                            width: item.width * state.scale, 
+                            height: item.height * state.scale, 
+                            text: item.str 
+                        });
+                    });
+                    
+                    pageDiv.appendChild(textLayer);
+                    TextSelection.enable(textLayer, textItems, pageNum);
+                    addExtractionMarkersForPage(pageNum);
+                    container.appendChild(pageDiv);
+
+                    AppStateManager.setState({ currentPage: pageNum });
+                    document.getElementById('page-num').value = pageNum.toString();
+                    clearSearchMarkers();
+
+                } catch (error) {
+                    console.error("PDF Render Error:", error);
+                    StatusManager.show(`Failed to render page ${pageNum}`, 'error');
+                } finally {
+                    AppStateManager.setState({ isProcessing: false });
+                    StatusManager.showLoading(false);
+                }
+            }
+        };
+
+        const TextSelection = {
+            enable: (textLayer, textItems, pageNum) => {
+                let isSelecting = false;
+                let startItem = null;
+                let selectedItems = [];
+
+                const handleMouseDown = (e) => {
+                    const state = AppStateManager.getState();
+                    if (!state.activeField) {
+                        StatusManager.show('Please select a form field first', 'warning');
+                        return;
+                    }
+                    isSelecting = true;
+                    startItem = textItems.find(item => item.element === e.target);
+                    selectedItems = startItem ? [startItem] : [];
+                    textLayer.classList.add('active-selection');
+                    textLayer.querySelectorAll('.highlight').forEach(el => 
+                        el.classList.remove('highlight')
+                    );
+                    if (startItem) startItem.element.classList.add('highlight');
+                };
+
+                const handleMouseMove = (e) => {
+                    const state = AppStateManager.getState();
+                    if (!isSelecting || !state.activeField || !startItem) return;
+
+                    const currentItem = textItems.find(item => item.element === e.target);
+                    if (currentItem) {
+                        const startIndex = textItems.findIndex(item => 
+                            item.element === startItem.element
+                        );
+                        const endIndex = textItems.findIndex(item => 
+                            item.element === currentItem.element
+                        );
+
+                        if (startIndex === -1 || endIndex === -1) return;
+
+                        selectedItems = textItems.slice(
+                            Math.min(startIndex, endIndex),
+                            Math.max(startIndex, endIndex) + 1
+                        );
+
+                        textItems.forEach(item => {
+                            const shouldHighlight = selectedItems.some(sel => 
+                                sel.element === item.element
+                            );
+                            item.element.classList.toggle('highlight', shouldHighlight);
+                        });
+                    }
+                };
+
+                const handleMouseUp = () => {
+                    const state = AppStateManager.getState();
+                    if (!isSelecting || !state.activeField) return;
+
+                    isSelecting = false;
+                    textLayer.classList.remove('active-selection');
+
+                    if (selectedItems.length > 0 && selectedItems.every(item => item)) {
+                        const extractedText = selectedItems
+                            .map(item => item.text)
+                            .join(' ')
+                            .trim();
+                        const sanitizedText = SecurityUtils.sanitizeText(extractedText);
+                        const bounds = calculateBoundingBox(selectedItems);
+
+                        const extraction = ExtractionTracker.addExtraction({
+                            fieldName: state.activeField,
+                            text: sanitizedText,
+                            page: pageNum,
+                            coordinates: bounds,
+                            method: 'manual',
+                            documentName: state.documentName
+                        });
+
+                        if (extraction && state.activeFieldElement) {
+                            const element = state.activeFieldElement;
+                            if (element.type === 'number') {
+                                const match = sanitizedText.match(/-?\d+(\.\d+)?/);
+                                element.value = match ? match[0] : '';
+                            } else {
+                                element.value = sanitizedText;
+                            }
+                            element.classList.add('has-extraction');
+                        }
+
+                        selectedItems.forEach(item => {
+                            if (item && item.element) {
+                                item.element.classList.remove('highlight');
+                                item.element.classList.add('extracted');
+                            }
+                        });
+
+                        if (extraction) {
+                            addExtractionMarker(extraction);
+                            StatusManager.show(`✓ Extracted to ${state.activeField}`, 'success');
+                            autoAdvanceField();
+                        } else {
+                            StatusManager.show(`Extraction failed validation`, 'error');
+                        }
+                    } else {
+                        textLayer.querySelectorAll('.highlight').forEach(el => 
+                            el.classList.remove('highlight')
+                        );
+                    }
+                    
+                    startItem = null;
+                    selectedItems = [];
+                };
+
+                textLayer.onmousedown = handleMouseDown;
+                textLayer.onmousemove = handleMouseMove;
+                textLayer.onmouseup = handleMouseUp;
+                textLayer.onmouseleave = () => {
+                    if (isSelecting) {
+                        isSelecting = false;
+                        textLayer.classList.remove('active-selection');
+                        textLayer.querySelectorAll('.highlight').forEach(el => 
+                            el.classList.remove('highlight')
+                        );
+                        startItem = null;
+                        selectedItems = [];
+                    }
+                };
+            }
+        };
+
+        // ==================== EXTRACTION TRACKING ====================
+        const ExtractionTracker = {
+            extractions: [],
+            fieldMap: new Map(),
+            
+            init: function() {
+                this.loadFromStorage();
+            },
+            
+            addExtraction: function(data) {
+                const sanitizedData = {
+                    ...data,
+                    text: SecurityUtils.sanitizeText(data.text),
+                    fieldName: SecurityUtils.sanitizeText(data.fieldName),
+                    documentName: SecurityUtils.sanitizeText(data.documentName)
+                };
+                
+                const validationData = { 
+                    ...sanitizedData, 
+                    id: 'temp', 
+                    timestamp: new Date().toISOString() 
+                };
+
+                if (!SecurityUtils.validateExtraction(validationData)) {
+                    console.error('Invalid extraction:', validationData);
+                    return null;
+                }
+
+                const extraction = {
+                    id: `ext_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+                    timestamp: new Date().toISOString(),
+                    ...sanitizedData
+                };
+                
+                this.extractions.push(extraction);
+                this.fieldMap.set(data.fieldName, extraction);
+                this.updateTraceLog(extraction);
+                this.updateStats();
+                this.saveToStorage();
+                AppStateManager.setState({ extractions: this.extractions });
+                
+                return extraction;
+            },
+            
+            updateTraceLog: function(extraction) {
+                const logContainer = document.getElementById('trace-log');
+                if (!logContainer) return;
+                
+                const entry = document.createElement('div');
+                entry.className = 'trace-entry';
+                entry.dataset.extractionId = extraction.id;
+                entry.dataset.method = extraction.method;
+                
+                const truncatedText = extraction.text.length > 80 
+                    ? extraction.text.substring(0, 80) + '...' 
+                    : extraction.text;
+                    
+                entry.innerHTML = `
+                    <span class="field-label">${SecurityUtils.escapeHtml(extraction.fieldName)}</span>
+                    <span class="extracted-text">"${SecurityUtils.escapeHtml(truncatedText)}"</span>
+                    <div class="metadata">
+                        Page ${extraction.page} | ${extraction.method} | ${new Date(extraction.timestamp).toLocaleTimeString()}
+                    </div>
+                `;
+                
+                entry.onclick = () => this.navigateToExtraction(extraction);
+                logContainer.insertBefore(entry, logContainer.firstChild);
+            },
+            
+            navigateToExtraction: function(extraction) {
+                if (extraction.method !== 'manual') {
+                    StatusManager.show(`AI Extraction: ${extraction.text}`, 'info', 5000);
+                    return;
+                }
+                
+                const state = AppStateManager.getState();
+                if (extraction.page !== state.currentPage) {
+                    PDFRenderer.renderPage(extraction.page);
+                }
+                
+                setTimeout(() => {
+                    const marker = document.querySelector(
+                        `.extraction-marker[data-extraction-id="${extraction.id}"]`
+                    );
+                    if (marker) {
+                        marker.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                        marker.style.background = 'rgba(255, 193, 7, 0.5)';
+                        setTimeout(() => { 
+                            marker.style.background = ''; 
+                        }, 1000);
+                    }
+                }, 500);
+            },
+            
+            updateStats: function() {
+                document.getElementById('extraction-count').textContent = this.extractions.length;
+                const uniquePages = new Set(this.extractions.map(e => e.page));
+                document.getElementById('pages-with-data').textContent = uniquePages.size;
+            },
+            
+            saveToStorage: function() {
+                try {
+                    localStorage.setItem('clinical_extractions', 
+                        JSON.stringify(this.extractions)
+                    );
+                } catch (e) { 
+                    console.error("Storage save failed", e); 
+                }
+            },
+            
+            loadFromStorage: function() {
+                try {
+                    const saved = localStorage.getItem('clinical_extractions');
+                    if (saved) {
+                        this.extractions = JSON.parse(saved);
+                        this.extractions.forEach(ext => {
+                            this.fieldMap.set(ext.fieldName, ext);
+                            this.updateTraceLog(ext);
+                        });
+                        this.updateStats();
+                        AppStateManager.setState({ extractions: this.extractions });
+                    }
+                } catch (e) { 
+                    console.error("Storage load failed", e); 
+                    this.extractions = []; 
+                }
+            },
+            
+            getExtractions: function() { 
+                return this.extractions; 
+            }
+        };
+
+        // ==================== FORM MANAGEMENT ====================
+        const FormManager = {
+            validator: SecurityUtils,
+            
+            initialize: function() {
+                this.initializeFormFields();
+                this.initializeNavigation();
+                DynamicFields.initialize();
+                this.showStep(0);
+            },
+            
+            initializeFormFields: function() {
+                const inputs = document.querySelectorAll('.linked-input');
+                inputs.forEach(input => {
+                    input.addEventListener('focus', () => {
+                        document.querySelectorAll('.form-group').forEach(g => 
+                            g.classList.remove('active-extraction')
+                        );
+                        
+                        const fieldName = input.name || input.id;
+                        AppStateManager.setState({ 
+                            activeField: fieldName, 
+                            activeFieldElement: input 
+                        });
+                        
+                        input.closest('.form-group')?.classList.add('active-extraction');
+                        document.getElementById('active-field-indicator').textContent = 
+                            `Extracting: ${fieldName}`;
+                        document.getElementById('active-field-indicator').style.background = 
+                            '#4CAF50';
+                    });
+                    
+                    input.addEventListener('blur', () => {
+                        this.validateFieldUIUpdate(input);
+                    });
+                    
+                    input.addEventListener('input', () => {
+                        input.classList.remove('ai-populated');
+                    });
+                });
+            },
+            
+            validateFieldUIUpdate: function(input) {
+                input.classList.remove('ai-populated');
+                
+                const result = this.validator.validateInput(input);
+                input.classList.toggle('validation-error', !result.valid);
+                
+                const messageEl = input.nextElementSibling;
+                if (messageEl && messageEl.classList.contains('validation-message')) {
+                    messageEl.textContent = result.valid ? '' : result.message;
+                    messageEl.style.display = result.valid ? 'none' : 'block';
+                }
+                
+                return result.valid;
+            },
+            
+            initializeNavigation: function() {
+                document.getElementById('prev-btn').onclick = () => this.previousStep();
+                document.getElementById('next-btn').onclick = () => this.nextStep();
+            },
+            
+            showStep: function(stepIndex) {
+                const steps = document.querySelectorAll('.step');
+                const state = AppStateManager.getState();
+                
+                steps.forEach((step, index) => 
+                    step.classList.toggle('active', index === stepIndex)
+                );
+                
+                document.getElementById('prev-btn').disabled = (stepIndex === 0);
+                document.getElementById('step-indicator').textContent = 
+                    `Step ${stepIndex + 1} of ${state.totalSteps}`;
+                
+                const isLastStep = stepIndex === state.totalSteps - 1;
+                document.getElementById('next-btn').style.display = 
+                    isLastStep ? 'none' : 'inline-block';
+                document.getElementById('submit-btn-group').style.display = 
+                    isLastStep ? 'flex' : 'none';
+                
+                document.querySelector('.form-panel').scrollTop = 0;
+                
+                const progressBar = document.getElementById('progress-bar');
+                if (progressBar) {
+                    const progress = ((stepIndex + 1) / state.totalSteps) * 100;
+                    progressBar.style.width = progress + '%';
+                }
+                
+                this.initializeFormFields();
+                
+                if (stepIndex >= 6 && window.updateArmSelectors) {
+                    window.updateArmSelectors();
+                }
+            },
+            
+            nextStep: function() {
+                const state = AppStateManager.getState();
+                
+                if (state.currentStep === 1) {
+                    const inclusionMet = document.getElementById('inclusion-met').value;
+                    if (inclusionMet === 'false') {
+                        if (!confirm('Study does not meet inclusion criteria. Continue anyway?')) {
+                            return;
+                        }
+                    }
+                }
+
+                if (state.currentStep < state.totalSteps - 1) {
+                    const newStep = state.currentStep + 1;
+                    AppStateManager.setState({ currentStep: newStep });
+                    this.showStep(newStep);
+                }
+            },
+            
+            previousStep: function() {
+                const state = AppStateManager.getState();
+                if (state.currentStep > 0) {
+                    const newStep = state.currentStep - 1;
+                    AppStateManager.setState({ currentStep: newStep });
+                    this.showStep(newStep);
+                }
+            },
+            
+            collectFormData: function() {
+                const formData = {};
+                document.querySelectorAll(
+                    '#extraction-form input, #extraction-form textarea, #extraction-form select'
+                ).forEach(input => {
+                    if (input.value) formData[input.name || input.id] = input.value;
+                });
+                return formData;
+            }
+        };
+
+        // ==================== DYNAMIC FIELDS ====================
+        const DynamicFields = {
+            counters: { 
+                indication: 0, 
+                intervention: 0, 
+                arm: 0, 
+                mortality: 0, 
+                mrs: 0, 
+                complication: 0, 
+                predictor: 0 
+            },
+            
+            initialize: function() {
+                window.addIndication = () => this.addField('indication', 'indications-container');
+                window.addIntervention = () => this.addField('intervention', 'interventions-container');
+                window.addArm = () => this.addField('arm', 'arms-container');
+                window.addMortality = () => this.addField('mortality', 'mortality-global-container');
+                window.addMRS = () => this.addField('mrs', 'mrs-global-container');
+                window.addComplication = () => this.addField('complication', 'complications-container');
+                window.addPredictor = () => this.addField('predictor', 'predictors-container');
+                window.removeElement = (btn) => this.removeElement(btn);
+                window.updateArmSelectors = () => this.updateArmSelectors();
+            },
+            
+            addField: function(type, containerId) {
+                const container = document.getElementById(containerId);
+                if (!container) return;
+                
+                const count = this.counters[type]++;
+                const div = document.createElement('div');
+                div.className = 'dynamic-container';
+                let htmlContent = '';
+
+                switch (type) {
+                    case 'indication':
+                        htmlContent = `
+                            <h4>Indication ${count + 1}</h4>
+                            <div class="grid-2col">
+                                <div class="form-group">
+                                    <label>Sign/Symptom</label>
+                                    <select name="indication_sign_${count}" class="linked-input">
+                                        <option value="">Select...</option>
+                                        <option value="Drowsiness">Drowsiness</option>
+                                        <option value="GCS_Drop">Drop in GCS</option>
+                                        <option value="Imaging_Mass_Effect">Imaging mass effect</option>
+                                        <option value="Other">Other</option>
+                                    </select>
+                                </div>
+                                <div class="form-group">
+                                    <label>Count (N)</label>
+                                    <input type="number" name="indication_count_${count}" class="linked-input">
+                                </div>
+                            </div>`;
+                        break;
+                        
+                    case 'intervention':
+                        htmlContent = `
+                            <h4>Intervention ${count + 1}</h4>
+                            <div class="form-group">
+                                <label>Surgical Type</label>
+                                <select name="intervention_type_${count}" class="linked-input">
+                                    <option value="">Select...</option>
+                                    <option value="SDC_EVD">SDC + EVD</option>
+                                    <option value="SDC_ALONE">SDC Alone</option>
+                                    <option value="EVD_ALONE">EVD Alone</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label>Time To Surgery (Hours)</label>
+                                <input type="number" step="0.1" name="intervention_time_${count}" class="linked-input">
+                            </div>
+                            <div class="form-group">
+                                <label>Duraplasty?</label>
+                                <select name="intervention_duraplasty_${count}" class="linked-input">
+                                    <option value="null">Unknown</option>
+                                    <option value="true">Yes</option>
+                                    <option value="false">No</option>
+                                </select>
+                            </div>`;
+                        break;
+                        
+                    case 'arm':
+                        htmlContent = `
+                            <h3>Study Arm ${count + 1}</h3>
+                            <div class="grid-2col">
+                                <div class="form-group">
+                                    <label>Label</label>
+                                    <input type="text" name="arm_label_${count}" class="linked-input arm-label-input" oninput="updateArmSelectors()">
+                                </div>
+                                <div class="form-group">
+                                    <label>Sample Size (N)</label>
+                                    <input type="number" name="arm_n_${count}" class="linked-input">
+                                </div>
+                            </div>`;
+                        break;
+                        
+                    case 'mortality':
+                        htmlContent = `
+                            <h4>Mortality Data ${count + 1}</h4>
+                            <div class="grid-2col">
+                                <div class="form-group">
+                                    <label>Arm</label>
+                                    <select name="mortality_arm_${count}" class="arm-selector linked-input"></select>
+                                </div>
+                                <div class="form-group">
+                                    <label>Timepoint</label>
+                                    <input type="text" name="mortality_tp_${count}" class="linked-input">
+                                </div>
+                            </div>
+                            <div class="grid-2col">
+                                <div class="form-group">
+                                    <label>Deaths (N)</label>
+                                    <input type="number" name="mortality_deaths_${count}" class="linked-input">
+                                </div>
+                                <div class="form-group">
+                                    <label>Total (N)</label>
+                                    <input type="number" name="mortality_total_${count}" class="linked-input">
+                                </div>
+                            </div>`;
+                        break;
+                        
+                    case 'mrs':
+                        htmlContent = `
+                            <h4>mRS Data ${count + 1}</h4>
+                            <div class="grid-2col">
+                                <div class="form-group">
+                                    <label>Arm</label>
+                                    <select name="mrs_arm_${count}" class="arm-selector linked-input"></select>
+                                </div>
+                                <div class="form-group">
+                                    <label>Timepoint</label>
+                                    <input type="text" name="mrs_tp_${count}" class="linked-input">
+                                </div>
+                            </div>
+                            <h5>Distribution (Counts)</h5>
+                            <div class="grid-mrs">
+                                ${[0,1,2,3,4,5,6].map(i => `
+                                    <div class="form-group">
+                                        <label>${i}</label>
+                                        <input type="number" name="mrs_${i}_${count}" class="linked-input">
+                                    </div>
+                                `).join('')}
+                            </div>`;
+                        break;
+                        
+                    case 'complication':
+                        htmlContent = `
+                            <h4>Complication ${count + 1}</h4>
+                            <div class="grid-2col">
+                                <div class="form-group">
+                                    <label>Description</label>
+                                    <input type="text" name="comp_desc_${count}" class="linked-input">
+                                </div>
+                                <div class="form-group">
+                                    <label>Arm</label>
+                                    <select name="comp_arm_${count}" class="arm-selector linked-input"></select>
+                                </div>
+                            </div>
+                            <div class="form-group">
+                                <label>Count (N)</label>
+                                <input type="number" name="comp_count_${count}" class="linked-input">
+                            </div>`;
+                        break;
+                        
+                    case 'predictor':
+                        htmlContent = `
+                            <h4>Predictor ${count + 1}</h4>
+                            <div class="form-group">
+                                <label>Predictor Variable</label>
+                                <input type="text" name="pred_var_${count}" class="linked-input">
+                            </div>
+                            <div class="grid-3col">
+                                <div class="form-group">
+                                    <label>Effect Size (OR/HR)</label>
+                                    <input type="number" step="0.01" name="pred_effect_${count}" class="linked-input">
+                                </div>
+                                <div class="form-group">
+                                    <label>95% CI (Lower)</label>
+                                    <input type="number" step="0.01" name="pred_ci_lower_${count}" class="linked-input">
+                                </div>
+                                <div class="form-group">
+                                    <label>95% CI (Upper)</label>
+                                    <input type="number" step="0.01" name="pred_ci_upper_${count}" class="linked-input">
+                                </div>
+                            </div>
+                            <div class="form-group">
+                                <label>p-Value</label>
+                                <input type="number" step="0.001" name="pred_pvalue_${count}" class="linked-input">
+                            </div>`;
+                        break;
+                }
+
+                htmlContent += `<button type="button" class="remove-btn" onclick="removeElement(this)">Remove</button>`;
+                div.innerHTML = htmlContent;
+                container.appendChild(div);
+                
+                FormManager.initializeFormFields();
+                if (type === 'arm' || type === 'mortality' || type === 'mrs' || type === 'complication') {
+                    this.updateArmSelectors();
+                }
+            },
+            
+            removeElement: function(button) {
+                button.closest('.dynamic-container')?.remove();
+                this.updateArmSelectors();
+            },
+            
+            updateArmSelectors: function() {
+                const armLabels = Array.from(document.querySelectorAll('.arm-label-input'))
+                    .map(input => input.value.trim())
+                    .filter(Boolean);
+
+                document.querySelectorAll('.arm-selector').forEach(select => {
+                    const currentValue = select.value;
+                    select.innerHTML = '<option value="">Select Arm...</option>';
+                    
+                    armLabels.forEach(label => {
+                        const option = new Option(label, label);
+                        select.add(option);
+                    });
+                    
+                    if (armLabels.includes(currentValue)) {
+                        select.value = currentValue;
+                    }
+                });
+            }
+        };
+
+        // ==================== AI FUNCTIONS ====================
+        async function callGeminiWithSearch(systemPrompt, userPrompt, jsonSchema) {
+            const apiKey = CONFIG.GEMINI_API_KEY;
+            if (!apiKey) {
+                throw new Error("Gemini API Key is missing");
+            }
+            
+            const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`;
+            
+            const payload = {
+                contents: [{ parts: [{ text: userPrompt }] }],
+                systemInstruction: { parts: [{ text: systemPrompt }] },
+                tools: [{ "google_search": {} }],
+                generationConfig: {
+                    responseMimeType: "application/json",
+                    responseSchema: jsonSchema
+                }
+            };
+
+            let attempt = 0;
+            const maxAttempts = 3;
+            let delay = 1000;
+
+            while (attempt < maxAttempts) {
+                try {
+                    const response = await fetch(apiUrl, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(payload)
+                    });
+
+                    if (!response.ok) {
+                        const errorBody = await response.json();
+                        throw new Error(`API Error ${response.status}: ${errorBody.error?.message}`);
+                    }
+
+                    const result = await response.json();
+                    const text = result.candidates?.[0]?.content?.parts?.[0]?.text;
+                    
+                    if (text) return text;
+                    
+                    throw new Error("No text returned from API");
+                    
+                } catch (error) {
+                    console.warn(`Attempt ${attempt + 1} failed:`, error);
+                    attempt++;
+                    if (attempt >= maxAttempts) throw error;
+                    await new Promise(resolve => setTimeout(resolve, delay));
+                    delay *= 2;
+                }
+            }
+        }
+
+        window.generatePICO = async function() {
+            const state = AppStateManager.getState();
+            if (!state.lector) {
+                StatusManager.show('Please load a PDF first', 'warning');
+                return;
+            }
+            if (state.isProcessing) return;
+
+            AppStateManager.setState({ isProcessing: true });
+            document.getElementById('pico-loading').style.display = 'block';
+            StatusManager.show('✨ Generating PICO-T...', 'info');
+
+            try {
+                const systemPrompt = "Extract PICO-T information from the clinical study. Return JSON only.";
+                const picoSchema = {
+                    type: "OBJECT",
+                    properties: {
+                        "population": { "type": "STRING" },
+                        "intervention": { "type": "STRING" },
+                        "comparator": { "type": "STRING" },
+                        "outcomes": { "type": "STRING" },
+                        "timing": { "type": "STRING" },
+                        "studyType": { "type": "STRING" }
+                    }
+                };
+
+                const response = await state.lector.query(systemPrompt, { jsonSchema: picoSchema });
+                const data = response.data;
+
+                const fields = [
+                    'eligibility-population', 
+                    'eligibility-intervention', 
+                    'eligibility-comparator', 
+                    'eligibility-outcomes', 
+                    'eligibility-timing', 
+                    'eligibility-type'
+                ];
+                fields.forEach(id => document.getElementById(id)?.classList.add('ai-populated'));
+
+                document.getElementById('eligibility-population').value = data.population || '';
+                document.getElementById('eligibility-intervention').value = data.intervention || '';
+                document.getElementById('eligibility-comparator').value = data.comparator || '';
+                document.getElementById('eligibility-outcomes').value = data.outcomes || '';
+                document.getElementById('eligibility-timing').value = data.timing || '';
+                document.getElementById('eligibility-type').value = data.studyType || '';
+
+                const coords = { x: 0, y: 0, width: 0, height: 0 };
+                Object.keys(data).forEach(key => {
+                    if (data[key]) {
+                        ExtractionTracker.addExtraction({
+                            fieldName: `${key} (AI)`,
+                            text: data[key],
+                            page: 0,
+                            coordinates: coords,
+                            method: 'gemini-pico',
+                            documentName: state.documentName
+                        });
+                    }
+                });
+
+                StatusManager.show('✨ PICO-T generated!', 'success');
+
+            } catch (error) {
+                console.error("PICO Error:", error);
+                StatusManager.show(`AI generation failed: ${error.message}`, 'error');
+            } finally {
+                AppStateManager.setState({ isProcessing: false });
+                document.getElementById('pico-loading').style.display = 'none';
+            }
+        };
+
+        window.generateSummary = async function() {
+            const state = AppStateManager.getState();
+            if (!state.lector) {
+                StatusManager.show('Please load a PDF first', 'warning');
+                return;
+            }
+            if (state.isProcessing) return;
+
+            AppStateManager.setState({ isProcessing: true });
+            document.getElementById('summary-loading').style.display = 'block';
+            StatusManager.show('✨ Generating summary...', 'info');
+
+            try {
+                const systemPrompt = "Write a concise summary (2-3 paragraphs) of the study's key findings and outcomes.";
+                const response = await state.lector.query(systemPrompt);
+                const summaryText = response.text;
+
+                const summaryEl = document.getElementById('predictorsPoorOutcomeSurgical');
+                summaryEl.value = summaryText;
+                summaryEl.classList.add('ai-populated');
+
+                ExtractionTracker.addExtraction({
+                    fieldName: 'summary (AI)',
+                    text: summaryText,
+                    page: 0,
+                    coordinates: { x: 0, y: 0, width: 0, height: 0 },
+                    method: 'gemini-summary',
+                    documentName: state.documentName
+                });
+
+                StatusManager.show('✨ Summary generated!', 'success');
+
+            } catch (error) {
+                console.error("Summary Error:", error);
+                StatusManager.show(`AI summary failed: ${error.message}`, 'error');
+            } finally {
+                AppStateManager.setState({ isProcessing: false });
+                document.getElementById('summary-loading').style.display = 'none';
+            }
+        };
+
+        window.validateFieldWithAI = async function(fieldId) {
+            const state = AppStateManager.getState();
+            const field = document.getElementById(fieldId);
+            if (!field) return;
+
+            const claim = field.value;
+            if (!claim) {
+                StatusManager.show('Field is empty', 'warning');
+                return;
+            }
+
+            if (!state.lector) {
+                StatusManager.show('Please load a PDF first', 'warning');
+                return;
+            }
+            if (state.isProcessing) return;
+
+            AppStateManager.setState({ isProcessing: true });
+            StatusManager.showLoading(true);
+            StatusManager.show(`✨ Validating: "${claim.substring(0, 30)}..."`, 'info');
+
+            try {
+                const validation = await state.lector.validate(claim);
+
+                if (validation.is_supported) {
+                    StatusManager.show(
+                        `✓ VALIDATED (${(validation.confidence_score * 100).toFixed(0)}%): "${validation.supporting_quote}"`, 
+                        'success', 
+                        8000
+                    );
+                    field.style.borderColor = 'var(--success-green)';
+                } else {
+                    StatusManager.show(
+                        `✗ NOT SUPPORTED (${(validation.confidence_score * 100).toFixed(0)}%)`, 
+                        'warning', 
+                        8000
+                    );
+                    field.style.borderColor = 'var(--warning-orange)';
+                }
+
+            } catch (error) {
+                console.error("Validation Error:", error);
+                StatusManager.show(`Validation failed: ${error.message}`, 'error');
+            } finally {
+                AppStateManager.setState({ isProcessing: false });
+                StatusManager.showLoading(false);
+            }
+        };
+
+        window.findMetadata = async function() {
+            const state = AppStateManager.getState();
+            if (state.isProcessing) return;
+
+            const citationText = document.getElementById('citation').value;
+            if (!citationText) {
+                StatusManager.show('Please enter a citation first', 'warning');
+                return;
+            }
+
+            AppStateManager.setState({ isProcessing: true });
+            document.getElementById('metadata-loading').style.display = 'block';
+            StatusManager.show('✨ Searching for metadata...', 'info');
+
+            try {
+                const systemPrompt = "Find metadata for this study. Return only JSON.";
+                const userPrompt = `Find DOI, PMID, journal, and year for: "${citationText}"`;
+                const metadataSchema = {
+                    type: "OBJECT",
+                    properties: {
+                        "doi": { "type": "STRING" },
+                        "pmid": { "type": "STRING" },
+                        "journal": { "type": "STRING" },
+                        "year": { "type": "STRING" }
+                    }
+                };
+
+                const responseJson = await callGeminiWithSearch(systemPrompt, userPrompt, metadataSchema);
+                const data = JSON.parse(responseJson);
+
+                const fieldsToUpdate = ['doi', 'pmid', 'journal', 'year'];
+                fieldsToUpdate.forEach(id => {
+                    const el = document.getElementById(id);
+                    if (el && data[id]) {
+                        el.value = data[id];
+                        el.classList.add('ai-populated');
+                    }
+                });
+
+                StatusManager.show('✨ Metadata found!', 'success');
+
+            } catch (error) {
+                console.error("Metadata Error:", error);
+                StatusManager.show(`Metadata search failed: ${error.message}`, 'error');
+            } finally {
+                AppStateManager.setState({ isProcessing: false });
+                document.getElementById('metadata-loading').style.display = 'none';
+            }
+        };
+
+        window.findBaselineData = async function() {
+            const state = AppStateManager.getState();
+            if (!state.lector) {
+                StatusManager.show('Please load a PDF first', 'warning');
+                return;
+            }
+            if (state.isProcessing) return;
+
+            AppStateManager.setState({ isProcessing: true });
+            document.getElementById('baseline-loading').style.display = 'block';
+            StatusManager.show('✨ Extracting baseline data...', 'info');
+
+            try {
+                const systemPrompt = "Extract baseline demographics and clinical scores. Return numbers only (not strings with units).";
+                const baselineSchema = {
+                    type: "OBJECT",
+                    properties: {
+                        "totalN": { "type": "NUMBER" },
+                        "surgicalN": { "type": "NUMBER" },
+                        "controlN": { "type": "NUMBER" },
+                        "ageMean": { "type": "NUMBER" },
+                        "ageSD": { "type": "NUMBER" },
+                        "ageMedian": { "type": "NUMBER" },
+                        "ageIQR_lower": { "type": "NUMBER" },
+                        "ageIQR_upper": { "type": "NUMBER" },
+                        "maleN": { "type": "NUMBER" },
+                        "femaleN": { "type": "NUMBER" },
+                        "prestrokeMRS": { "type": "NUMBER" },
+                        "nihssMean": { "type": "NUMBER" },
+                        "gcsMean": { "type": "NUMBER" }
+                    }
+                };
+
+                const response = await state.lector.query(systemPrompt, { jsonSchema: baselineSchema });
+                const data = response.data;
+                const coords = { x: 0, y: 0, width: 0, height: 0 };
+
+                Object.keys(data).forEach(key => {
+                    const el = document.getElementById(key);
+                    const value = data[key];
+                    if (el && (value !== null && value !== undefined)) {
+                        el.value = value;
+                        el.classList.add('ai-populated');
+                        ExtractionTracker.addExtraction({
+                            fieldName: `${key} (AI)`,
+                            text: String(value),
+                            page: 0,
+                            coordinates: coords,
+                            method: 'gemini-baseline',
+                            documentName: state.documentName
+                        });
+                    }
+                });
+
+                StatusManager.show('✨ Baseline data extracted!', 'success');
+
+            } catch (error) {
+                console.error("Baseline Error:", error);
+                StatusManager.show(`Baseline extraction failed: ${error.message}`, 'error');
+            } finally {
+                AppStateManager.setState({ isProcessing: false });
+                document.getElementById('baseline-loading').style.display = 'none';
+            }
+        };
+
+        window.askPDF = async function() {
+            const state = AppStateManager.getState();
+            const query = document.getElementById('search-query').value.trim();
+            
+            if (!query) {
+                StatusManager.show('Please enter a question', 'warning');
+                return;
+            }
+            if (!state.lector) {
+                StatusManager.show('Please load a PDF first', 'warning');
+                return;
+            }
+            if (state.isProcessing) return;
+
+            AppStateManager.setState({ isProcessing: true });
+            StatusManager.showLoading(true);
+            StatusManager.show('✨ Asking PDF...', 'info');
+            
+            const resultsContainer = document.getElementById('search-results');
+            resultsContainer.innerHTML = '';
+
+            try {
+                const response = await state.lector.query(query);
+                let answerHtml = `<div class="search-answer">${SecurityUtils.escapeHtml(response.text)}</div>`;
+
+                if (response.sources && response.sources.length > 0) {
+                    answerHtml += `<h4>Sources:</h4>`;
+                    response.sources.slice(0, 2).forEach(source => {
+                        answerHtml += `<div class="search-source">...${SecurityUtils.escapeHtml(source.text)}...</div>`;
+                    });
+                }
+
+                resultsContainer.innerHTML = answerHtml;
+                StatusManager.show('✨ Answer received!', 'success');
+
+            } catch (error) {
+                console.error("Query Error:", error);
+                StatusManager.show(`Query failed: ${error.message}`, 'error');
+                resultsContainer.innerHTML = '<div style="padding: 10px; color: var(--error-red);">Error fetching answer.</div>';
+            } finally {
+                AppStateManager.setState({ isProcessing: false });
+                StatusManager.showLoading(false);
+            }
+        };
+
+        // ==================== EXPORT FUNCTIONS ====================
+        const ExportManager = {
+            exportJSON: function() {
+                const state = AppStateManager.getState();
+                const formData = FormManager.collectFormData();
+                const data = {
+                    document: state.documentName,
+                    exportDate: new Date().toISOString(),
+                    formData,
+                    extractions: ExtractionTracker.getExtractions()
+                };
+                const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+                this.downloadFile(blob, `extraction_${Date.now()}.json`);
+                StatusManager.show('✓ JSON exported', 'success');
+            },
+            
+            exportCSV: function() {
+                let csv = 'Field,Text,Page,X,Y,Width,Height,Method,Timestamp\n';
+                ExtractionTracker.getExtractions().forEach(ext => {
+                    csv += `"${ext.fieldName}","${ext.text.replace(/"/g, '""')}",${ext.page},${ext.coordinates.x},${ext.coordinates.y},${ext.coordinates.width},${ext.coordinates.height},"${ext.method}","${ext.timestamp}"\n`;
+                });
+                const blob = new Blob([csv], { type: 'text/csv' });
+                this.downloadFile(blob, `extraction_${Date.now()}.csv`);
+                StatusManager.show('✓ CSV exported', 'success');
+            },
+            
+            exportAudit: function() {
+                const formData = FormManager.collectFormData();
+                const state = AppStateManager.getState();
+                const extractions = ExtractionTracker.getExtractions();
+                
+                let html = `
+                    <!DOCTYPE html>
+                    <html>
+                    <head>
+                        <meta charset="UTF-8">
+                        <title>Audit Report - ${state.documentName}</title>
+                        <style>
+                            body { font-family: Arial, sans-serif; padding: 20px; max-width: 1200px; margin: 0 auto; }
+                            h1 { color: #2c3e50; }
+                            h2 { color: #34495e; border-bottom: 2px solid #3498db; padding-bottom: 5px; }
+                            .field { margin: 10px 0; padding: 10px; background: #ecf0f1; border-left: 4px solid #3498db; }
+                            .extraction { margin: 10px 0; padding: 10px; background: #fff3e0; border-left: 4px solid #ff9800; }
+                            strong { color: #2c3e50; }
+                            .timestamp { font-size: 0.9em; color: #7f8c8d; }
+                        </style>
+                    </head>
+                    <body>
+                        <h1>Clinical Study Extraction Audit Report</h1>
+                        <p><strong>Document:</strong> ${state.documentName}</p>
+                        <p><strong>Generated:</strong> ${new Date().toLocaleString()}</p>
+                        
+                        <h2>Form Data</h2>
+                `;
+                
+                Object.entries(formData).forEach(([key, value]) => {
+                    html += `<div class="field"><strong>${key}:</strong> ${SecurityUtils.escapeHtml(String(value))}</div>`;
+                });
+                
+                html += `<h2>Extractions (${extractions.length} total)</h2>`;
+                extractions.forEach(ext => {
+                    html += `
+                        <div class="extraction">
+                            <strong>${ext.fieldName}</strong> (Page ${ext.page}, ${ext.method})<br>
+                            <em>"${SecurityUtils.escapeHtml(ext.text)}"</em><br>
+                            <span class="timestamp">${new Date(ext.timestamp).toLocaleString()}</span>
+                        </div>
+                    `;
+                });
+                
+                html += `</body></html>`;
+                
+                const blob = new Blob([html], { type: 'text/html' });
+                const url = URL.createObjectURL(blob);
+                window.open(url, '_blank');
+                setTimeout(() => URL.revokeObjectURL(url), 1000);
+                StatusManager.show('✓ Audit report opened', 'success');
+            },
+            
+            exportAnnotatedPDF: function() {
+                StatusManager.show('Annotated PDF export coming soon', 'info');
+            },
+            
+            downloadFile: function(blob, filename) {
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = filename;
+                document.body.appendChild(a);
+                a.click();
+                a.remove();
+                setTimeout(() => URL.revokeObjectURL(url), 1000);
+            }
+        };
+
+        window.exportJSON = () => ExportManager.exportJSON();
+        window.exportCSV = () => ExportManager.exportCSV();
+        window.exportAudit = () => ExportManager.exportAudit();
+        window.exportAnnotatedPDF = () => ExportManager.exportAnnotatedPDF();
+
+        // ==================== HELPER FUNCTIONS ====================
+        window.calculateBoundingBox = (items) => {
+            let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+            items.forEach(item => {
+                if (!item) return;
+                const x = item.x ?? parseFloat(item.element?.dataset.x || '0');
+                const y = item.y ?? parseFloat(item.element?.dataset.y || '0');
+                const width = item.width ?? parseFloat(item.element?.dataset.width || '0');
+                const height = item.height ?? parseFloat(item.element?.dataset.height || '0');
+                minX = Math.min(minX, x);
+                minY = Math.min(minY, y);
+                maxX = Math.max(maxX, x + width);
+                maxY = Math.max(maxY, y + height);
+            });
+            if (!isFinite(minX)) return { x: 0, y: 0, width: 0, height: 0 };
+            return { 
+                x: Math.round(minX), 
+                y: Math.round(minY), 
+                width: Math.round(maxX - minX), 
+                height: Math.round(maxY - minY) 
+            };
+        };
+
+        window.addExtractionMarker = (extraction) => {
+            const pageDiv = document.querySelector('.pdf-page');
+            if (!pageDiv || !extraction || !extraction.coordinates) return;
+            
+            const marker = document.createElement('div');
+            marker.className = 'extraction-marker';
+            marker.dataset.extractionId = extraction.id;
+            marker.dataset.field = extraction.fieldName;
+            marker.dataset.method = extraction.method;
+            marker.style.left = extraction.coordinates.x + 'px';
+            marker.style.top = extraction.coordinates.y + 'px';
+            marker.style.width = extraction.coordinates.width + 'px';
+            marker.style.height = extraction.coordinates.height + 'px';
+            pageDiv.appendChild(marker);
+        };
+
+        window.addExtractionMarkersForPage = (pageNum) => {
+            const pageDiv = document.querySelector('.pdf-page');
+            if (!pageDiv) return;
+            
+            pageDiv.querySelectorAll('.extraction-marker').forEach(m => m.remove());
+            ExtractionTracker.getExtractions()
+                .filter(ext => ext.page === pageNum)
+                .forEach(ext => addExtractionMarker(ext));
+        };
+
+        window.autoAdvanceField = () => {
+            const state = AppStateManager.getState();
+            const currentStepElement = document.getElementById(`step-${state.currentStep + 1}`);
+            if (!currentStepElement || !state.activeFieldElement) return;
+            
+            const inputs = Array.from(
+                currentStepElement.querySelectorAll('.linked-input:not([disabled])')
+            );
+            const currentIndex = inputs.indexOf(state.activeFieldElement);
+            if (currentIndex >= 0 && currentIndex < inputs.length - 1) {
+                inputs[currentIndex + 1].focus();
+            }
+        };
+
+        window.clearSearchMarkers = () => {
+            AppState.searchMarkers.forEach(marker => marker.remove());
+            AppState.searchMarkers = [];
+            document.querySelectorAll('.search-highlight').forEach(el => 
+                el.classList.remove('search-highlight')
+            );
+        };
+
+        window.toggleSearchInterface = () => {
+            document.getElementById('search-interface')?.classList.toggle('active');
+        };
+
+        window.handleSubmitToGoogleSheets = async (e) => {
+            e.preventDefault();
+            
+            if (!CONFIG.GOOGLE_API_KEY || !CONFIG.GOOGLE_CLIENT_ID || !CONFIG.GOOGLE_SHEET_ID) {
+                StatusManager.show('Google Sheets configuration is incomplete. Check CONFIG.', 'error', 5000);
+                return;
+            }
+            
+            if (!gapiLoaded || !gapiTokenClient) {
+                StatusManager.show('Google API not ready. Please wait.', 'warning');
+                return;
+            }
+
+            StatusManager.showLoading(true);
+            StatusManager.show('Authenticating with Google...', 'info');
+
+            try {
+                gapiTokenClient.callback = async (tokenResponse) => {
+                    if (tokenResponse.error) {
+                        throw new Error(`Auth Error: ${tokenResponse.error}`);
+                    }
+                    
+                    await gapi.client.load('sheets', 'v4');
+                    StatusManager.show('Saving to Google Sheets...', 'info');
+
+                    const state = AppStateManager.getState();
+                    const formData = FormManager.collectFormData();
+                    const extractions = ExtractionTracker.getExtractions();
+                    const submissionId = `sub_${Date.now()}`;
+                    const timestamp = new Date().toISOString();
+
+                    const submissionRow = [
+                        submissionId,
+                        timestamp,
+                        state.documentName,
+                        formData.citation || '',
+                        formData.doi || '',
+                        formData.pmid || '',
+                        formData.totalN || ''
+                    ];
+
+                    const extractionRows = extractions.map(ext => [
+                        submissionId,
+                        ext.fieldName,
+                        ext.text,
+                        ext.page,
+                        ext.method,
+                        ext.coordinates?.x ?? 0,
+                        ext.coordinates?.y ?? 0,
+                        ext.coordinates?.width ?? 0,
+                        ext.coordinates?.height ?? 0
+                    ]);
+
+                    await gapi.client.sheets.spreadsheets.values.append({
+                        spreadsheetId: CONFIG.GOOGLE_SHEET_ID,
+                        range: 'Submissions!A:A',
+                        valueInputOption: 'USER_ENTERED',
+                        resource: { values: [submissionRow] }
+                    });
+
+                    if (extractionRows.length > 0) {
+                        await gapi.client.sheets.spreadsheets.values.append({
+                            spreadsheetId: CONFIG.GOOGLE_SHEET_ID,
+                            range: 'Extractions!A:A',
+                            valueInputOption: 'USER_ENTERED',
+                            resource: { values: extractionRows }
+                        });
+                    }
+
+                    StatusManager.showLoading(false);
+                    StatusManager.show('✓ Saved to Google Sheets!', 'success', 5000);
+                };
+
+                if (gapi.client.getToken() === null) {
+                    gapiTokenClient.requestAccessToken({ prompt: 'consent' });
+                } else {
+                    gapiTokenClient.callback(gapi.client.getToken());
+                }
+
+            } catch (error) {
+                console.error("Google Sheets Error:", error);
+                StatusManager.show(`Save failed: ${error.message}`, 'error');
+                StatusManager.showLoading(false);
+            }
+        };
+
+        // ==================== INITIALIZATION ====================
+        document.addEventListener('DOMContentLoaded', () => {
+            initializePdfJs();
+            ExtractionTracker.init();
+            FormManager.initialize();
+
+            // PDF Controls
+            document.getElementById('pdf-upload-btn').onclick = () => 
+                document.getElementById('pdf-file').click();
+            document.getElementById('pdf-file').onchange = (e) => 
+                PDFLoader.loadPDF(e.target.files[0]);
+            document.getElementById('pdf-file-2').onchange = (e) => 
+                PDFLoader.loadPDF(e.target.files[0]);
+
+            document.getElementById('pdf-prev-page').onclick = () => {
+                const state = AppStateManager.getState();
+                if (state.currentPage > 1) PDFRenderer.renderPage(state.currentPage - 1);
+            };
+
+            document.getElementById('pdf-next-page').onclick = () => {
+                const state = AppStateManager.getState();
+                if (state.currentPage < state.totalPages) 
+                    PDFRenderer.renderPage(state.currentPage + 1);
+            };
+
+            document.getElementById('page-num').onchange = (e) => {
+                const pageNum = parseInt(e.target.value);
+                const state = AppStateManager.getState();
+                if (!isNaN(pageNum) && pageNum >= 1 && pageNum <= state.totalPages) {
+                    PDFRenderer.renderPage(pageNum);
+                } else {
+                    e.target.value = state.currentPage.toString();
+                }
+            };
+
+            document.getElementById('zoom-level').onchange = (e) => {
+                const scale = parseFloat(e.target.value);
+                AppStateManager.setState({ scale });
+                PDFRenderer.renderPage(AppStateManager.getState().currentPage);
+            };
+
+            document.getElementById('fit-width').onclick = async () => {
+                const state = AppStateManager.getState();
+                if (!state.pdfDoc) return;
+                
+                const container = document.getElementById('pdf-container');
+                if (!container) return;
+                
+                const containerWidth = container.clientWidth - 40;
+                
+                try {
+                    const page = await state.pdfDoc.getPage(state.currentPage);
+                    const viewport = page.getViewport({ scale: 1.0 });
+                    const newScale = containerWidth / viewport.width;
+                    AppStateManager.setState({ scale: newScale });
+                    document.getElementById('zoom-level').value = newScale.toFixed(2);
+                    await PDFRenderer.renderPage(state.currentPage);
+                } catch (error) {
+                    console.error("Fit Width Error:", error);
+                    StatusManager.show("Could not fit PDF to width", "error");
+                }
+            };
+
+            // Drag & Drop
+            const uploadArea = document.getElementById('upload-area');
+            if (uploadArea) {
+                uploadArea.onclick = () => document.getElementById('pdf-file-2').click();
+                uploadArea.ondragover = (e) => { 
+                    e.preventDefault(); 
+                    uploadArea.style.background = '#e3f2fd'; 
+                };
+                uploadArea.ondragleave = () => { 
+                    uploadArea.style.background = ''; 
+                };
+                uploadArea.ondrop = (e) => {
+                    e.preventDefault();
+                    uploadArea.style.background = '';
+                    const file = e.dataTransfer?.files[0];
+                    if (file && file.type === 'application/pdf') {
+                        PDFLoader.loadPDF(file);
+                    } else {
+                        StatusManager.show('Please drop a valid PDF file', 'warning');
+                    }
+                };
+            }
+
+            StatusManager.show('🧠 System ready. Configure API keys in CONFIG, then load a PDF.', 'info', 5000);
+        });
+    </script>
+</body>
+</html>
