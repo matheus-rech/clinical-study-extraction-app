@@ -1,133 +1,182 @@
-# ⚡ Quick Start Guide
+# ⚡ Quick Start - Deploy in 3 Minutes
 
-Get the Clinical Study Extraction System running in 5 minutes!
+## 🚀 One-Click Deployment (Recommended)
 
-## Option 1: Local Development (Fastest)
+### Step 1: Create DigitalOcean Droplet
+- Go to [DigitalOcean](https://digitalocean.com)
+- Create Droplet: Ubuntu 22.04, $6/month plan
+- Note your IP address
+
+### Step 2: SSH and Run Setup
+```bash
+ssh root@YOUR_DROPLET_IP
+curl -fsSL https://raw.githubusercontent.com/matheus-rech/clinical-study-extraction-app/main/setup.sh | bash
+```
+
+### Step 3: Enter Your API Key
+When prompted:
+```
+olmOCR API Key: 4g6DiFP5V2myP6skXuqUPZDquyRCJ9wf
+```
+Press Enter for all other prompts.
+
+### Step 4: Access Your App
+- **Backend**: `http://YOUR_DROPLET_IP:8000`
+- **API Docs**: `http://YOUR_DROPLET_IP:8000/docs`
+- **Frontend**: `http://YOUR_DROPLET_IP:3000`
+
+**Done!** 🎉
+
+---
+
+## 💻 Local Development
 
 ### Prerequisites
 - Docker and Docker Compose installed
-- Git installed
 
 ### Steps
 
 ```bash
-# 1. Clone the repository
+# 1. Clone repository
 git clone https://github.com/matheus-rech/clinical-study-extraction-app.git
 cd clinical-study-extraction-app
 
-# 2. Start development environment
-docker-compose up -d
+# 2. Configure environment
+cp .env.example .env
+nano .env  # Add olmOCR API key
 
-# 3. Access the application
+# 3. Start services
+chmod +x deploy-docker.sh
+./deploy-docker.sh up
+
+# 4. Access
 # Frontend: http://localhost:3000
 # Backend:  http://localhost:8000
 # API Docs: http://localhost:8000/docs
 ```
 
-That's it! The application is now running locally.
-
 ---
 
-## Option 2: Local Production Test
-
-Test production configuration locally:
+## 🛠️ Management Commands
 
 ```bash
-# 1. Create production environment
-cp .env.production.example .env.production
-# Edit .env.production with your values
+cd /opt/clinical-study-extraction-app
 
-# 2. Run deployment script
-./deploy-local.sh
-
-# This will:
-# - Build production images
-# - Start containers
-# - Run health checks
-# - Show access URLs
+./deploy-docker.sh status    # Check status
+./deploy-docker.sh logs      # View logs
+./deploy-docker.sh restart   # Restart services
+./deploy-docker.sh backup    # Backup database
+./deploy-docker.sh health    # Health check
 ```
 
 ---
 
-## Option 3: Deploy to Cloud (10 minutes)
+## 🔑 API Keys
 
-### Railway + Vercel (Free Tier)
+### Required
+- **olmOCR API Key**: `4g6DiFP5V2myP6skXuqUPZDquyRCJ9wf`
+  - Get from: https://deepinfra.com
 
-**Backend (Railway):**
-1. Go to https://railway.app/
-2. Sign in with GitHub
-3. New Project → Deploy from GitHub
-4. Select your repo, root: `backend`
-5. Add env vars:
-   ```
-   ENVIRONMENT=production
-   DEBUG=False
-   CORS_ORIGINS=https://your-frontend.vercel.app
-   ```
-
-**Frontend (Vercel):**
-1. Go to https://vercel.com/
-2. New Project → Import from GitHub
-3. Root directory: `frontend`
-4. Add env vars:
-   ```
-   VITE_API_BASE_URL=https://your-backend.railway.app
-   VITE_GEMINI_API_KEY=your_key
-   ```
+### Optional
+- **Gemini API Key**: (press Enter to skip)
+- **Anthropic API Key**: (press Enter to skip)
 
 ---
 
-## Next Steps
-
-- 📚 Read full documentation: [README.md](README.md)
-- 🚀 Production setup guide: [PRODUCTION_SETUP.md](PRODUCTION_SETUP.md)
-- 🎯 Deployment options: [DEPLOY_NOW.md](DEPLOY_NOW.md)
-
----
-
-## Common Commands
+## ✅ Verify Installation
 
 ```bash
-# Development
-docker-compose up -d              # Start
-docker-compose logs -f            # View logs
-docker-compose down               # Stop
+# Check health
+curl http://YOUR_DROPLET_IP:8000/health
 
-# Production
-docker-compose -f docker-compose.prod.yml up -d
-./verify-deployment.sh            # Check health
-
-# Testing
-curl http://localhost:8000/health # Backend health
-curl http://localhost:3000        # Frontend
+# Should return:
+# {"status":"healthy","service":"PDF Processing API"}
 ```
 
 ---
 
-## Troubleshooting
+## 📚 Full Documentation
 
-**Port already in use:**
-```bash
-# Change ports in docker-compose.yml
-ports:
-  - "8001:8000"  # Use 8001 instead of 8000
-```
-
-**Docker not running:**
-```bash
-# Start Docker Desktop or Docker daemon
-# Then retry: docker-compose up -d
-```
-
-**Can't connect frontend to backend:**
-- Check CORS_ORIGINS includes your frontend URL
-- Verify VITE_API_BASE_URL is correct
-- Ensure backend is running: `curl http://localhost:8000/health`
+- **One-Click Guide**: `ONE_CLICK_DEPLOYMENT.md`
+- **Docker Guide**: `DOCKER_DEPLOYMENT.md`
+- **Features**: `FINAL_DELIVERY_SUMMARY.md`
 
 ---
 
-## Need Help?
+## 🆘 Troubleshooting
 
-- 📖 Full docs: [README.md](README.md)
-- 🐛 Report issues: [GitHub Issues](https://github.com/matheus-rech/clinical-study-extraction-app/issues)
-- 💬 Check existing issues for solutions
+### Can't access application?
+```bash
+# Check services
+cd /opt/clinical-study-extraction-app
+./deploy-docker.sh status
+
+# Check firewall
+sudo ufw status
+```
+
+### Services not starting?
+```bash
+# View logs
+./deploy-docker.sh logs
+
+# Restart
+./deploy-docker.sh restart
+```
+
+### Port already in use?
+```bash
+# Find process
+lsof -ti:8000
+
+# Kill process
+kill $(lsof -ti:8000)
+```
+
+---
+
+## 🎯 Complete Example
+
+```bash
+# 1. SSH into droplet
+ssh root@142.93.123.45
+
+# 2. Run one-click setup
+curl -fsSL https://raw.githubusercontent.com/matheus-rech/clinical-study-extraction-app/main/setup.sh | bash
+
+# 3. Enter API key when prompted
+# olmOCR API Key: 4g6DiFP5V2myP6skXuqUPZDquyRCJ9wf
+
+# 4. Wait 2-3 minutes...
+
+# 5. Access application
+# http://142.93.123.45:8000/docs
+```
+
+**Total time: ~3 minutes** ⏱️
+
+---
+
+## 📊 What Gets Deployed?
+
+- ✅ Backend (FastAPI with 4 workers)
+- ✅ Frontend (React)
+- ✅ PostgreSQL (Database with schema)
+- ✅ Redis (Cache)
+- ✅ Nginx (Reverse proxy)
+- ✅ 4 Extraction Methods (PyMuPDF, Camelot, Tabula, olmOCR)
+- ✅ 5 Export Formats (CSV, Excel, JSON, HTML, PDF)
+
+---
+
+## 🔄 GitHub Actions Auto-Deploy
+
+For automated deployments, see: `ONE_CLICK_DEPLOYMENT.md`
+
+---
+
+**Ready to deploy? Just run the one-click command!** 🚀
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/matheus-rech/clinical-study-extraction-app/main/setup.sh | bash
+```
