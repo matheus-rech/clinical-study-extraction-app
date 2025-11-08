@@ -52,7 +52,7 @@ class Settings:
     GEMINI_API_KEY: Optional[str] = os.getenv("GEMINI_API_KEY")
 
     # Database (if needed in future)
-    DATABASE_URL: Optional[str] = os.getenv("DATABASE_URL")
+    LOG_LEVEL: str = os.getenv("LOG_LEVEL", "DEBUG" if DEBUG else "INFO")
 
     # Logging
     LOG_LEVEL: str = os.getenv("LOG_LEVEL", "INFO" if not DEBUG else "DEBUG")
