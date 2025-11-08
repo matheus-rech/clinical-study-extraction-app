@@ -1,0 +1,35 @@
+{
+  "timestamp": "2025-11-08T14:59:21.021898",
+  "pdf_tested": "/home/ubuntu/clinical-study-extraction-app/test_samples/Won2024.pdf",
+  "test_page": 4,
+  "total_tests": 6,
+  "passed": 6,
+  "failed": 0,
+  "success_rate": "100.0%",
+  "results": {
+    "PyMuPDF Tables": {
+      "success": true,
+      "data_summary": "[{'table_index': 0, 'page': 4, 'markdown': '| Table. Baseline Characteristics of Surgically and Conservatively Treated Patients With Cerebellar Infarct |  |  |  |  |\\n| --- | --- | --- | --- | --- |\\n| Characteristic | Nonmatched cohort (n = 531) Propensity score\u2013matched cohort (n = 142) |  |  |  |\\n|  | No. (%) | OR\\n(95% CI) P valuea | No. (%) | OR\\n(95% CI) P valueb |\\n|  | Surgery Conservative\\n(n = 127) (n = 404) |  | Surgery Conservative\\n(n = 71) (n = 71) |  |\\n| Age, mean (SD), y 66.1 (1"
+    },
+    "Camelot Tables": {
+      "success": true,
+      "data_summary": "[{'table_index': 0, 'page': 4, 'markdown': '| 0                                                                        | 1                                                                                                         | 2                           | 3             | 4        | 5                                   | 6                                         | 7               | 8        |\\n|:-------------------------------------------------------------------------|:-------------------------"
+    },
+    "Tabula Tables": {
+      "success": true,
+      "data_summary": "[{'table_index': 0, 'page': 4, 'markdown': '| Functional Outcomes in Conservatively vs Surgically Treated Cerebellar Infarcts Original Investigation | Research |\\n| --- | --- |\\n| Table. Baseline Characteristics of Surgically and Conservatively Treated Patients With Cerebellar Infarct |  |\\n| Nonmatched cohort (n = 531) Propensity score\u2013matched cohort (n = 142) |  |\\n| No. (%) No. (%) |  |\\n| Surgery Conservative OR Surgery Conservative OR |  |\\n| bCharacteristic (n = 127) (n = 404) (95% CI) P v"
+    },
+    "Unified Tables": {
+      "success": true,
+      "data_summary": "{'success': True, 'tables': [{'table_index': 0, 'page': 4, 'markdown': '| Table. Baseline Characteristics of Surgically and Conservatively Treated Patients With Cerebellar Infarct |  |  |  |  |\\n| --- | --- | --- | --- | --- |\\n| Characteristic | Nonmatched cohort (n = 531) Propensity score\u2013matched cohort (n = 142) |  |  |  |\\n|  | No. (%) | OR\\n(95% CI) P valuea | No. (%) | OR\\n(95% CI) P valueb |\\n|  | Surgery Conservative\\n(n = 127) (n = 404) |  | Surgery Conservative\\n(n = 71) (n = 71) |  |\\"
+    },
+    "PyMuPDF Figures": {
+      "success": true,
+      "data_summary": "[{'image_index': 0, 'page': 6, 'xref': 141, 'format': 'png', 'width': 297, 'height': 82, 'size_bytes': 678, 'bbox': {'x0': 334.61700439453125, 'y0': 221.62200927734375, 'x1': 405.9330139160156, 'y1': 241.3380126953125}, 'caption': '70\\n80\\n90', 'image_base64': 'iVBORw0KGgoAAAANSUhEUgAAASkAAABSCAIAAACHabVjAAAACXBIWXMAAA7EAAAOxAGVKw4bAAACWElEQVR4nO3Yu40UQRRA0Y2IdAiAtIgAYw18TLIAUhkYIT1Gw6q3u/6fIx1jzBqpr6ree/nw8dOB12/fgeJut9vLcXsihBru7f39dbJAEUIR/9oLIoQG3mgviBDqOWoviBCKO9VeECGUcq29IELIlNheECGkyW0viB"
+    },
+    "Unified Figures": {
+      "success": true,
+      "data_summary": "{'success': True, 'figures': [{'image_index': 2, 'page': 6, 'xref': 143, 'format': 'png', 'width': 676, 'height': 233, 'size_bytes': 3845, 'bbox': {'x0': 243.65699768066406, 'y0': 166.4219970703125, 'x1': 405.9329833984375, 'y1': 222.37799072265625}, 'caption': '0\\n50\\n60\\n70\\n80\\n90', 'image_base64': 'iVBORw0KGgoAAAANSUhEUgAAAqQAAADpCAIAAAB9fbJlAAAACXBIWXMAAA7EAAAOxAGVKw4bAAAOt0lEQVR4nO3dP47rypnGYW/EW/B2bjLJwIn3YzgbYFJjghPYkw6MEzjxGmzDgffgkNPXBHR1pZaaoor1flV8iCc8B02Rxe9H/ev+xff//W+2W/7xJwDY7V+/"
+    }
+  }
+}

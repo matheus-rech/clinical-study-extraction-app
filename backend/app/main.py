@@ -55,6 +55,7 @@ from pdf_manipulation import PDFManipulator
 from app.api.advanced_extraction import router as advanced_router
 from app.api.vision_extraction import router as vision_router
 from app.api.figure_extraction import router as figure_router
+from app.api.unified_extraction import router as unified_router
 
 # Configure logging
 logging.basicConfig(
@@ -99,6 +100,7 @@ executor = ThreadPoolExecutor(max_workers=settings.MAX_WORKERS)
 app.include_router(advanced_router)
 app.include_router(vision_router)
 app.include_router(figure_router)
+app.include_router(unified_router)
 
 
 # ==================== TABLE EXTRACTION ====================
