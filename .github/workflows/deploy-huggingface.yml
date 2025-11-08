@@ -11,7 +11,7 @@ on:
   workflow_dispatch:  # Allow manual trigger
 
 env:
-  HF_SPACE_REPO: ${{ secrets.HF_USERNAME }}/clinical-study-extraction-app
+  HF_SPACE_REPO: ${{ secrets.HF_USERNAME }}/clinical-study-extraction
 
 jobs:
   # Job 1: Build and Test
@@ -149,27 +149,25 @@ jobs:
           rm -rf hf-space
 
       - name: 📝 Create deployment summary
-        if: success( )
+        if: success()
         run: |
           echo "## 🚀 Deployment to Hugging Face Spaces Successful!" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "**Environment:** Production" >> $GITHUB_STEP_SUMMARY
-          echo "**Space:** ${{ secrets.HF_USERNAME }}/clinical-study-extraction-app" >> $GITHUB_STEP_SUMMARY
+          echo "**Space:** ${{ secrets.HF_USERNAME }}/clinical-study-extraction" >> $GITHUB_STEP_SUMMARY
           echo "**Branch:** ${{ github.ref_name }}" >> $GITHUB_STEP_SUMMARY
           echo "**Commit:** ${{ github.sha }}" >> $GITHUB_STEP_SUMMARY
           echo "**Deployed by:** ${{ github.actor }}" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "### 🔗 Access URLs" >> $GITHUB_STEP_SUMMARY
-          echo "- **Space URL:** https://huggingface.co/spaces/${{ secrets.HF_USERNAME }}/clinical-study-extraction-app" >> $GITHUB_STEP_SUMMARY
-          echo "- **API Endpoint:** https://${{ secrets.HF_USERNAME }}-clinical-study-extraction-app.hf.space" >> $GITHUB_STEP_SUMMARY
-          echo "- **API Docs:** https://${{ secrets.HF_USERNAME }}-clinical-study-extraction-app.hf.space/docs" >> $GITHUB_STEP_SUMMARY
+          echo "- **Space URL:** https://huggingface.co/spaces/${{ secrets.HF_USERNAME }}/clinical-study-extraction" >> $GITHUB_STEP_SUMMARY
+          echo "- **API Endpoint:** https://${{ secrets.HF_USERNAME }}-clinical-study-extraction.hf.space" >> $GITHUB_STEP_SUMMARY
+          echo "- **API Docs:** https://${{ secrets.HF_USERNAME }}-clinical-study-extraction.hf.space/docs" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "### 📊 Build Info" >> $GITHUB_STEP_SUMMARY
-          echo "- Build time: $(date )" >> $GITHUB_STEP_SUMMARY
+          echo "- Build time: $(date)" >> $GITHUB_STEP_SUMMARY
           echo "- Workflow: ${{ github.workflow }}" >> $GITHUB_STEP_SUMMARY
           echo "- Run ID: ${{ github.run_id }}" >> $GITHUB_STEP_SUMMARY
-
-
 
   # Job 3: Deploy to Staging Space (Develop branch)
   deploy-staging:
@@ -218,7 +216,7 @@ jobs:
           rm -rf hf-staging
 
       - name: 📝 Create staging summary
-        if: success( )
+        if: success()
         run: |
           echo "## 🧪 Staging Deployment Successful!" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
@@ -242,7 +240,7 @@ jobs:
 
       - name: 🏥 Health Check
         run: |
-          SPACE_URL="https://${{ secrets.HF_USERNAME }}-clinical-study-extraction-app.hf.space"
+          SPACE_URL="https://${{ secrets.HF_USERNAME }}-clinical-study-extraction.hf.space"
           
           echo "🔍 Checking health endpoint..."
           for i in {1..5}; do
@@ -260,7 +258,7 @@ jobs:
 
       - name: 📊 Test API Endpoints
         run: |
-          SPACE_URL="https://${{ secrets.HF_USERNAME }}-clinical-study-extraction-app.hf.space"
+          SPACE_URL="https://${{ secrets.HF_USERNAME }}-clinical-study-extraction.hf.space"
           
           echo "🔍 Testing API documentation..."
           if curl -f -s "$SPACE_URL/docs" > /dev/null; then
@@ -277,7 +275,7 @@ jobs:
           fi
 
       - name: 📝 Create validation summary
-        if: success( )
+        if: success()
         run: |
           echo "## ✅ Deployment Validation Successful!" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
@@ -296,7 +294,7 @@ jobs:
         env:
           HF_TOKEN: ${{ secrets.HF_TOKEN }}
           HF_USERNAME: ${{ secrets.HF_USERNAME }}
-          SPACE_NAME: clinical-study-extraction-app
+          SPACE_NAME: clinical-study-extraction
         run: |
           set -e
           
