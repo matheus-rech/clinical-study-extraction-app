@@ -68,6 +68,10 @@ set_secret() {
 
 # Function to generate a secret key
 generate_secret_key() {
+    if ! command -v openssl >/dev/null 2>&1; then
+        echo -e "  ${RED}✗ Error: 'openssl' is not installed or not in PATH. Please install openssl to generate secrets.${NC}"
+        return 1
+    fi
     openssl rand -hex 32
 }
 
