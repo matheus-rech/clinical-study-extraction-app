@@ -40,7 +40,7 @@ class Settings:
     ALLOWED_EXTENSIONS: List[str] = [
         ext.strip()
         for ext in os.getenv("ALLOWED_EXTENSIONS", "pdf").split(",")
-    ]
+    TESSERACT_CMD: Optional[str] = os.getenv("TESSERACT_CMD", None)
 
     # OCR
     TESSERACT_CMD: str = os.getenv("TESSERACT_CMD", "/usr/bin/tesseract")
