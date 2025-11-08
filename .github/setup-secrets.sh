@@ -92,7 +92,8 @@ echo ""
 
 echo "Generating SECRET_KEY..."
 SECRET_KEY=$(generate_secret_key)
-echo -e "${GREEN}Generated: ${SECRET_KEY}${NC}"
+read -sp "Press Enter to set this secret, or input your own: " custom_key
+echo ""
 read -p "Press Enter to set this secret, or input your own: " custom_key
     SECRET_KEY="$custom_key"
     SECRET_KEY=$custom_key
