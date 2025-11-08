@@ -1,0 +1,133 @@
+name: CI - Test & Lint
+
+on:
+  push:
+    branches: [ main, develop, 'claude/**' ]
+  pull_request:
+    branches: [ main, develop ]
+
+jobs:
+  backend-tests:
+    name: Backend Tests & Lint
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.11'
+        cache: 'pip'
+        cache-dependency-path: backend/requirements.txt
+
+    - name: Install system dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y tesseract-ocr tesseract-ocr-eng
+
+    - name: Install Python dependencies
+      working-directory: ./backend
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+        pip install pytest pytest-cov flake8
+
+    - name: Lint with flake8
+      working-directory: ./backend
+      run: |
+        # Stop the build if there are Python syntax errors or undefined names
+        flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
+        # Exit-zero treats all errors as warnings
+        flake8 . --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
+
+    - name: Run backend tests
+      working-directory: ./backend
+      env:
+        ENVIRONMENT: test
+        DEBUG: "False"
+        SECRET_KEY: test-secret-key-for-ci
+        CORS_ORIGINS: http://localhost:3000
+      run: |
+        pytest --cov=app --cov-report=xml --cov-report=html -v
+
+    - name: Upload coverage reports
+      uses: codecov/codecov-action@v4
+      if: always()
+      with:
+        files: ./backend/coverage.xml
+        flags: backend
+        fail_ci_if_error: false
+
+  frontend-tests:
+    name: Frontend Tests & Lint
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+        cache: 'npm'
+        cache-dependency-path: frontend/package-lock.json
+
+    - name: Install dependencies
+      working-directory: ./frontend
+      run: npm ci
+
+    - name: Lint frontend
+      working-directory: ./frontend
+      run: |
+        # Add linting if you have it configured
+        echo "Frontend linting step - add your linting commands here"
+        # npm run lint
+
+    - name: Build frontend
+      working-directory: ./frontend
+      env:
+        VITE_API_BASE_URL: http://localhost:8000
+      run: npm run build
+
+    - name: Run frontend tests
+      working-directory: ./frontend
+      run: |
+        # Add testing if you have it configured
+        echo "Frontend testing step - add your test commands here"
+        # npm test
+
+  docker-build:
+    name: Docker Build Test
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
+
+    - name: Build backend Docker image
+      uses: docker/build-push-action@v5
+      with:
+        context: ./backend
+        push: false
+        tags: clinical-study-backend:test
+        cache-from: type=gha
+        cache-to: type=gha,mode=max
+
+    - name: Build frontend Docker image
+      uses: docker/build-push-action@v5
+      with:
+        context: ./frontend
+        push: false
+        tags: clinical-study-frontend:test
+        cache-from: type=gha
+        cache-to: type=gha,mode=max
+
+    - name: Test docker-compose configuration
+      run: |
+        docker-compose -f docker-compose.prod.yml config

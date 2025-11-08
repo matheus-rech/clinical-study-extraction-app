@@ -1,0 +1,110 @@
+name: Deploy to Railway
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    name: Deploy to Railway
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Install Railway CLI
+      run: |
+        curl -fsSL https://railway.app/install.sh | sh
+        echo "$HOME/.railway/bin" >> $GITHUB_PATH
+
+    - name: Deploy Backend to Railway
+      env:
+        RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+      run: |
+        railway link ${{ secrets.RAILWAY_PROJECT_ID }}
+
+        # Deploy backend service
+        railway service backend
+
+        # Set environment variables for backend
+        railway variables set \
+          ENVIRONMENT=production \
+          DEBUG=False \
+          HOST=0.0.0.0 \
+          PORT=8000 \
+          CORS_ORIGINS="${{ secrets.CORS_ORIGINS }}" \
+          SECRET_KEY="${{ secrets.SECRET_KEY }}" \
+          MAX_FILE_SIZE=50000000 \
+          LOG_LEVEL=INFO \
+          ENTREZ_EMAIL="${{ secrets.ENTREZ_EMAIL }}"
+
+        # Deploy backend
+        railway up --service backend --detach
+
+    - name: Deploy Frontend to Railway
+      env:
+        RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+      run: |
+        railway link ${{ secrets.RAILWAY_PROJECT_ID }}
+
+        # Deploy frontend service
+        railway service frontend
+
+        # Set environment variables for frontend
+        railway variables set \
+          VITE_API_BASE_URL="${{ secrets.RAILWAY_BACKEND_URL }}" \
+          VITE_GEMINI_API_KEY="${{ secrets.GEMINI_API_KEY }}" \
+          VITE_ENABLE_AI_FEATURES=true \
+          VITE_ENABLE_BACKEND_EXTRACTION=true
+
+        # Deploy frontend
+        railway up --service frontend --detach
+
+    - name: Wait for deployment
+      run: |
+        echo "Waiting for services to deploy..."
+        sleep 30
+
+    - name: Verify deployment
+      run: |
+        # Check backend health
+        BACKEND_URL="${{ secrets.RAILWAY_BACKEND_URL }}"
+        echo "Checking backend at: $BACKEND_URL/health"
+
+        BACKEND_STATUS=$(curl -s -o /dev/null -w "%{http_code}" $BACKEND_URL/health || echo "000")
+        if [ "$BACKEND_STATUS" = "200" ]; then
+          echo "✅ Backend is healthy (HTTP $BACKEND_STATUS)"
+        else
+          echo "❌ Backend health check failed (HTTP $BACKEND_STATUS)"
+          exit 1
+        fi
+
+        # Check frontend
+        FRONTEND_URL="${{ secrets.RAILWAY_FRONTEND_URL }}"
+        echo "Checking frontend at: $FRONTEND_URL"
+
+        FRONTEND_STATUS=$(curl -s -o /dev/null -w "%{http_code}" $FRONTEND_URL || echo "000")
+        if [ "$FRONTEND_STATUS" = "200" ]; then
+          echo "✅ Frontend is healthy (HTTP $FRONTEND_STATUS)"
+        else
+          echo "❌ Frontend health check failed (HTTP $FRONTEND_STATUS)"
+          exit 1
+        fi
+
+    - name: Deployment summary
+      if: success()
+      run: |
+        echo "🚀 Deployment successful!"
+        echo ""
+        echo "Backend URL: ${{ secrets.RAILWAY_BACKEND_URL }}"
+        echo "Frontend URL: ${{ secrets.RAILWAY_FRONTEND_URL }}"
+        echo ""
+        echo "View logs at: https://railway.app/project/${{ secrets.RAILWAY_PROJECT_ID }}"
+
+    - name: Notify on failure
+      if: failure()
+      run: |
+        echo "❌ Deployment to Railway failed!"
+        echo "Check the Railway dashboard for more details."

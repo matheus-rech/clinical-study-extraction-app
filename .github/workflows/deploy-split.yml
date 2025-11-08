@@ -1,0 +1,180 @@
+name: Deploy Split (Vercel + Railway)
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  deploy-backend:
+    name: Deploy Backend to Railway
+    runs-on: ubuntu-latest
+    outputs:
+      backend_url: ${{ steps.get-url.outputs.url }}
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Install Railway CLI
+      run: |
+        curl -fsSL https://railway.app/install.sh | sh
+        echo "$HOME/.railway/bin" >> $GITHUB_PATH
+
+    - name: Deploy Backend
+      env:
+        RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+      working-directory: ./backend
+      run: |
+        railway link ${{ secrets.RAILWAY_PROJECT_ID }}
+        railway service backend
+
+        # Set environment variables
+        railway variables set \
+          ENVIRONMENT=production \
+          DEBUG=False \
+          HOST=0.0.0.0 \
+          PORT=8000 \
+          CORS_ORIGINS="${{ secrets.CORS_ORIGINS }}" \
+          SECRET_KEY="${{ secrets.SECRET_KEY }}" \
+          MAX_FILE_SIZE=50000000 \
+          LOG_LEVEL=INFO \
+          ENTREZ_EMAIL="${{ secrets.ENTREZ_EMAIL }}"
+
+        # Deploy
+        railway up --service backend --detach
+
+    - name: Get Backend URL
+      id: get-url
+      run: |
+        echo "url=${{ secrets.RAILWAY_BACKEND_URL }}" >> $GITHUB_OUTPUT
+
+    - name: Wait and verify backend
+      run: |
+        echo "Waiting for backend to be ready..."
+        sleep 30
+
+        BACKEND_URL="${{ secrets.RAILWAY_BACKEND_URL }}"
+        MAX_RETRIES=10
+        RETRY_COUNT=0
+
+        while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
+          STATUS=$(curl -s -o /dev/null -w "%{http_code}" $BACKEND_URL/health || echo "000")
+          if [ "$STATUS" = "200" ]; then
+            echo "✅ Backend is healthy!"
+            break
+          fi
+          echo "Backend not ready yet (attempt $((RETRY_COUNT+1))/$MAX_RETRIES)..."
+          sleep 10
+          RETRY_COUNT=$((RETRY_COUNT+1))
+        done
+
+        if [ $RETRY_COUNT -eq $MAX_RETRIES ]; then
+          echo "❌ Backend failed to become healthy"
+          exit 1
+        fi
+
+  deploy-frontend:
+    name: Deploy Frontend to Vercel
+    runs-on: ubuntu-latest
+    needs: deploy-backend
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+        cache: 'npm'
+        cache-dependency-path: frontend/package-lock.json
+
+    - name: Install Vercel CLI
+      run: npm install -g vercel@latest
+
+    - name: Pull Vercel Environment
+      working-directory: ./frontend
+      env:
+        VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+        VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+        VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+      run: vercel pull --yes --environment=production --token=$VERCEL_TOKEN
+
+    - name: Build Frontend
+      working-directory: ./frontend
+      env:
+        VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+        VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+        VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+        VITE_API_BASE_URL: ${{ secrets.RAILWAY_BACKEND_URL }}
+        VITE_GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+        VITE_ENABLE_AI_FEATURES: true
+        VITE_ENABLE_BACKEND_EXTRACTION: true
+      run: vercel build --prod --token=$VERCEL_TOKEN
+
+    - name: Deploy to Vercel
+      working-directory: ./frontend
+      env:
+        VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+        VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+        VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+      run: |
+        DEPLOYMENT_URL=$(vercel deploy --prebuilt --prod --token=$VERCEL_TOKEN)
+        echo "Frontend deployed to: $DEPLOYMENT_URL"
+        echo "FRONTEND_URL=$DEPLOYMENT_URL" >> $GITHUB_ENV
+
+    - name: Verify frontend deployment
+      run: |
+        sleep 10
+        FRONTEND_URL="${{ env.FRONTEND_URL }}"
+        STATUS=$(curl -s -o /dev/null -w "%{http_code}" $FRONTEND_URL || echo "000")
+
+        if [ "$STATUS" = "200" ]; then
+          echo "✅ Frontend is healthy!"
+        else
+          echo "❌ Frontend health check failed (HTTP $STATUS)"
+          exit 1
+        fi
+
+  update-backend-cors:
+    name: Update Backend CORS Origins
+    runs-on: ubuntu-latest
+    needs: [deploy-backend, deploy-frontend]
+    if: success()
+
+    steps:
+    - name: Update CORS settings
+      run: |
+        echo "🔧 Reminder: Update CORS_ORIGINS in Railway backend to include:"
+        echo "  - ${{ env.FRONTEND_URL }}"
+        echo "  - Any other allowed origins"
+        echo ""
+        echo "Railway Dashboard: https://railway.app/project/${{ secrets.RAILWAY_PROJECT_ID }}"
+
+  deployment-summary:
+    name: Deployment Summary
+    runs-on: ubuntu-latest
+    needs: [deploy-backend, deploy-frontend, update-backend-cors]
+    if: always()
+
+    steps:
+    - name: Summary
+      run: |
+        echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+        echo "🚀 Deployment Complete!"
+        echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+        echo ""
+        echo "📦 Backend (Railway):"
+        echo "   URL: ${{ secrets.RAILWAY_BACKEND_URL }}"
+        echo "   Docs: ${{ secrets.RAILWAY_BACKEND_URL }}/docs"
+        echo ""
+        echo "🌐 Frontend (Vercel):"
+        echo "   URL: ${{ env.FRONTEND_URL }}"
+        echo ""
+        echo "⚙️  Next Steps:"
+        echo "   1. Verify CORS settings in Railway dashboard"
+        echo "   2. Test the application end-to-end"
+        echo "   3. Monitor logs for any issues"
+        echo ""
+        echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
