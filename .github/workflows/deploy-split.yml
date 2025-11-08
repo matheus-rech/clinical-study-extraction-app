@@ -121,6 +121,10 @@ jobs:
         VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
       run: |
         DEPLOYMENT_URL=$(vercel deploy --prebuilt --prod --token=$VERCEL_TOKEN)
+        if [ -z "$DEPLOYMENT_URL" ] || ! echo "$DEPLOYMENT_URL" | grep -qE '^https?://'; then
+          echo "❌ Vercel deployment failed or returned an invalid URL: '$DEPLOYMENT_URL'"
+          exit 1
+        fi
         echo "Frontend deployed to: $DEPLOYMENT_URL"
         echo "FRONTEND_URL=$DEPLOYMENT_URL" >> $GITHUB_ENV
 
