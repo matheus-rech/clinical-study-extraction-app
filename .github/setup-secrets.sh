@@ -53,7 +53,8 @@ set_secret() {
         echo -e "  ${GREEN}[OPTIONAL]${NC}"
     fi
 
-    read -p "  Enter value (or press Enter to skip): " secret_value
+    read -s -p "  Enter value (or press Enter to skip): " secret_value
+    echo
 
     if [ -n "$secret_value" ]; then
         echo "$secret_value" | gh secret set "$secret_name"
