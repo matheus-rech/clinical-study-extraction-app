@@ -91,7 +91,7 @@ class Settings:
                 raise ValueError("CORS_ORIGINS cannot be '*' in production!")
 
             if self.DEBUG:
-                print("WARNING: DEBUG mode is enabled in production!")
+                raise ValueError("DEBUG mode must not be enabled in production!")
 
     def __repr__(self) -> str:
         """String representation (hide sensitive data)"""
