@@ -78,6 +78,8 @@ jobs:
     name: Deploy Frontend to Vercel
     runs-on: ubuntu-latest
     needs: deploy-backend
+    outputs:
+      frontend_url: ${{ steps.get-frontend-url.outputs.url }}
 
     steps:
     - name: Checkout code
@@ -114,6 +116,7 @@ jobs:
       run: vercel build --prod --token=$VERCEL_TOKEN
 
     - name: Deploy to Vercel
+      id: get-frontend-url
       working-directory: ./frontend
       env:
         VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
@@ -126,12 +129,12 @@ jobs:
           exit 1
         fi
         echo "Frontend deployed to: $DEPLOYMENT_URL"
-        echo "FRONTEND_URL=$DEPLOYMENT_URL" >> $GITHUB_ENV
+        echo "url=$DEPLOYMENT_URL" >> $GITHUB_OUTPUT
 
     - name: Verify frontend deployment
       run: |
         sleep 10
-        FRONTEND_URL="${{ env.FRONTEND_URL }}"
+        FRONTEND_URL="${{ steps.get-frontend-url.outputs.url }}"
         STATUS=$(curl -s -o /dev/null -w "%{http_code}" $FRONTEND_URL || echo "000")
 
         if [ "$STATUS" = "200" ]; then
@@ -151,7 +154,7 @@ jobs:
     - name: Update CORS settings
       run: |
         echo "🔧 Reminder: Update CORS_ORIGINS in Railway backend to include:"
-        echo "  - ${{ env.FRONTEND_URL }}"
+        echo "  - ${{ needs.deploy-frontend.outputs.frontend_url }}"
         echo "  - Any other allowed origins"
         echo ""
         echo "Railway Dashboard: https://railway.app/project/${{ secrets.RAILWAY_PROJECT_ID }}"
@@ -174,7 +177,7 @@ jobs:
         echo "   Docs: ${{ secrets.RAILWAY_BACKEND_URL }}/docs"
         echo ""
         echo "🌐 Frontend (Vercel):"
-        echo "   URL: ${{ env.FRONTEND_URL }}"
+        echo "   URL: ${{ needs.deploy-frontend.outputs.frontend_url }}"
         echo ""
         echo "⚙️  Next Steps:"
         echo "   1. Verify CORS settings in Railway dashboard"
