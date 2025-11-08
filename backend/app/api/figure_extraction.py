@@ -11,7 +11,6 @@ import base64
 from pdf2image import convert_from_path
 import io
 from PIL import Image
-import pypdfium2 as pdfium
 import requests
 import json
 
@@ -22,335 +21,258 @@ GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
 ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY", "")
 
 
-def extract_images_from_pdf(pdf_path: str) -> List[Dict[str, Any]]:
+def extract_page_images(pdf_path: str, pages: List[int] = None, dpi: int = 200) -> List[Dict[str, Any]]:
     """
-    Extract embedded images from PDF using pypdfium2
-    Returns list of images with metadata
-    """
-    images_data = []
-    
-    try:
-        pdf = pdfium.PdfDocument(pdf_path)
-        
-        for page_index in range(len(pdf)):
-            page = pdf[page_index]
-            
-            # Get all image objects on the page
-            for obj_index, obj in enumerate(page.get_objects()):
-                if obj.type == pdfium.PDFOBJ_IMAGE:
-                    try:
-                        # Extract image
-                        image = obj.get_bitmap()
-                        pil_image = image.to_pil()
-                        
-                        # Convert to base64
-                        img_byte_arr = io.BytesIO()
-                        pil_image.save(img_byte_arr, format='PNG')
-                        img_byte_arr.seek(0)
-                        img_base64 = base64.b64encode(img_byte_arr.read()).decode('utf-8')
-                        
-                        # Get position
-                        matrix = obj.get_matrix()
-                        
-                        images_data.append({
-                            "page": page_index + 1,
-                            "image_index": obj_index + 1,
-                            "width": pil_image.width,
-                            "height": pil_image.height,
-                            "format": "PNG",
-                            "base64": img_base64,
-                            "position": {
-                                "x": matrix.a if matrix else 0,
-                                "y": matrix.b if matrix else 0
-                            }
-                        })
-                    except Exception as e:
-                        print(f"Error extracting image {obj_index} from page {page_index + 1}: {e}")
-                        continue
-        
-        pdf.close()
-    
-    except Exception as e:
-        print(f"Error processing PDF: {e}")
-    
-    return images_data
-
-
-def render_pdf_pages_as_images(pdf_path: str, dpi: int = 200) -> List[Dict[str, Any]]:
-    """
-    Render entire PDF pages as high-resolution images
-    Useful for capturing figures that are vector graphics or complex layouts
+    Convert PDF pages to images using pdf2image
+    Returns list of page images with metadata
     """
     images_data = []
     
     try:
-        images = convert_from_path(pdf_path, dpi=dpi)
+        # Convert PDF pages to images
+        if pages:
+            images = convert_from_path(pdf_path, dpi=dpi, first_page=min(pages), last_page=max(pages))
+        else:
+            images = convert_from_path(pdf_path, dpi=dpi)
         
-        for page_num, image in enumerate(images):
+        for idx, pil_image in enumerate(images):
             # Convert to base64
             img_byte_arr = io.BytesIO()
-            image.save(img_byte_arr, format='PNG')
+            pil_image.save(img_byte_arr, format='PNG')
             img_byte_arr.seek(0)
             img_base64 = base64.b64encode(img_byte_arr.read()).decode('utf-8')
             
+            page_num = pages[idx] if pages else idx + 1
+            
             images_data.append({
-                "page": page_num + 1,
-                "type": "full_page_render",
-                "width": image.width,
-                "height": image.height,
+                "page": page_num,
+                "width": pil_image.width,
+                "height": pil_image.height,
                 "format": "PNG",
-                "dpi": dpi,
                 "base64": img_base64
             })
     
     except Exception as e:
-        print(f"Error rendering PDF pages: {e}")
+        print(f"Error converting PDF pages to images: {e}")
     
     return images_data
 
 
-def describe_figure_with_ai(image_base64: str, provider: str = "gemini") -> Dict[str, Any]:
+def analyze_page_with_gemini(image_base64: str, page_num: int) -> List[Dict[str, Any]]:
     """
-    Use vision AI to analyze and describe a figure
+    Use Gemini Vision API to identify and describe figures/tables in a page image
     """
-    
-    prompt = """Analyze this figure from a clinical study and provide a detailed description.
-
-Identify:
-1. Figure type (e.g., bar chart, line graph, scatter plot, Kaplan-Meier curve, forest plot, flow diagram, medical image, etc.)
-2. What the figure shows (main message)
-3. Key data points, trends, or patterns
-4. Axis labels, legend information
-5. Statistical annotations (p-values, confidence intervals, error bars, etc.)
-6. Any text labels or captions visible in the figure
-
-Return JSON:
-{
-  "figure_type": "...",
-  "title": "...",
-  "description": "...",
-  "key_findings": ["...", "..."],
-  "statistical_info": "...",
-  "axes_labels": {"x": "...", "y": "..."},
-  "data_summary": "..."
-}"""
+    if not GEMINI_API_KEY:
+        return []
     
     try:
-        if provider.lower() == "anthropic" and ANTHROPIC_API_KEY:
-            # Use Claude 4.5
-            headers = {
-                "x-api-key": ANTHROPIC_API_KEY,
-                "anthropic-version": "2023-06-01",
-                "content-type": "application/json"
-            }
-            payload = {
-                "model": "claude-sonnet-4-5",
-                "max_tokens": 2048,
-                "messages": [{
-                    "role": "user",
-                    "content": [
-                        {"type": "image", "source": {"type": "base64", "media_type": "image/png", "data": image_base64}},
-                        {"type": "text", "text": prompt}
-                    ]
-                }]
-            }
-            response = requests.post("https://api.anthropic.com/v1/messages", headers=headers, json=payload, timeout=60)
-            response.raise_for_status()
-            text = response.json().get("content", [{}])[0].get("text", "{}")
-            
-            # Extract JSON from markdown code block if present
-            if "```json" in text:
-                text = text.split("```json")[1].split("```")[0].strip()
-            elif "```" in text:
-                text = text.split("```")[1].split("```")[0].strip()
-            
-            return json.loads(text)
+        url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent?key={GEMINI_API_KEY}"
         
-        else:
-            # Use Gemini 2.5
-            if not GEMINI_API_KEY:
-                raise ValueError("No AI provider API key configured")
-            
-            api_url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent?key={GEMINI_API_KEY}"
-            payload = {
-                "contents": [{
-                    "parts": [
-                        {"text": prompt},
-                        {"inline_data": {"mime_type": "image/png", "data": image_base64}}
-                    ]
-                }],
-                "generationConfig": {
-                    "temperature": 0.1,
-                    "responseMimeType": "application/json"
-                }
+        prompt = """Analyze this page from a clinical study PDF and identify all figures, charts, graphs, and tables.
+        
+For each visual element found, provide:
+1. Type (e.g., "Bar Chart", "Line Graph", "Table", "Flowchart", "Image")
+2. Title or caption (if visible)
+3. Brief description of what it shows
+4. Approximate position on page (top, middle, bottom)
+
+Return as JSON array with format:
+[
+  {
+    "type": "...",
+    "title": "...",
+    "description": "...",
+    "position": "..."
+  }
+]
+
+If no figures/tables found, return empty array []."""
+        
+        payload = {
+            "contents": [{
+                "parts": [
+                    {"text": prompt},
+                    {
+                        "inline_data": {
+                            "mime_type": "image/png",
+                            "data": image_base64
+                        }
+                    }
+                ]
+            }],
+            "generationConfig": {
+                "response_mime_type": "application/json"
             }
-            response = requests.post(api_url, json=payload, timeout=60)
-            response.raise_for_status()
-            text = response.json().get("candidates", [{}])[0].get("content", {}).get("parts", [{}])[0].get("text", "{}")
-            return json.loads(text)
+        }
+        
+        response = requests.post(url, json=payload, timeout=60)
+        response.raise_for_status()
+        
+        result = response.json()
+        if "candidates" in result and len(result["candidates"]) > 0:
+            text = result["candidates"][0]["content"]["parts"][0]["text"]
+            figures = json.loads(text)
+            
+            # Add page number to each figure
+            for fig in figures:
+                fig["page"] = page_num
+            
+            return figures
     
     except Exception as e:
-        return {
-            "error": str(e),
-            "figure_type": "unknown",
-            "description": "Failed to analyze figure"
+        print(f"Error analyzing page {page_num} with Gemini: {e}")
+    
+    return []
+
+
+def analyze_page_with_claude(image_base64: str, page_num: int) -> List[Dict[str, Any]]:
+    """
+    Use Claude Vision API to identify and describe figures/tables in a page image
+    """
+    if not ANTHROPIC_API_KEY:
+        return []
+    
+    try:
+        url = "https://api.anthropic.com/v1/messages"
+        
+        prompt = """Analyze this page from a clinical study PDF and identify all figures, charts, graphs, and tables.
+        
+For each visual element found, provide:
+1. Type (e.g., "Bar Chart", "Line Graph", "Table", "Flowchart", "Image")
+2. Title or caption (if visible)
+3. Brief description of what it shows
+4. Approximate position on page (top, middle, bottom)
+
+Return as JSON array with format:
+[
+  {
+    "type": "...",
+    "title": "...",
+    "description": "...",
+    "position": "..."
+  }
+]
+
+If no figures/tables found, return empty array []."""
+        
+        headers = {
+            "x-api-key": ANTHROPIC_API_KEY,
+            "anthropic-version": "2023-06-01",
+            "content-type": "application/json"
         }
+        
+        payload = {
+            "model": "claude-sonnet-4-5",
+            "max_tokens": 2000,
+            "messages": [{
+                "role": "user",
+                "content": [
+                    {
+                        "type": "image",
+                        "source": {
+                            "type": "base64",
+                            "media_type": "image/png",
+                            "data": image_base64
+                        }
+                    },
+                    {
+                        "type": "text",
+                        "text": prompt
+                    }
+                ]
+            }]
+        }
+        
+        response = requests.post(url, headers=headers, json=payload, timeout=90)
+        response.raise_for_status()
+        
+        result = response.json()
+        if "content" in result and len(result["content"]) > 0:
+            text = result["content"][0]["text"]
+            # Extract JSON from response
+            import re
+            json_match = re.search(r'\[.*\]', text, re.DOTALL)
+            if json_match:
+                figures = json.loads(json_match.group(0))
+                
+                # Add page number to each figure
+                for fig in figures:
+                    fig["page"] = page_num
+                
+                return figures
+    
+    except Exception as e:
+        print(f"Error analyzing page {page_num} with Claude: {e}")
+    
+    return []
 
 
 @router.post("/api/extract-figures-complete")
 async def extract_figures_complete(
     file: UploadFile = File(...),
+    pages: Optional[str] = None,
     provider: str = "gemini",
-    extract_embedded: bool = True,
-    render_pages: bool = True,
-    analyze_with_ai: bool = True,
-    dpi: int = 200,
-    pages: Optional[str] = None
+    dpi: int = 200
 ):
     """
     Comprehensive figure extraction:
-    1. Extract embedded images from PDF
-    2. Render pages as high-res images (for vector graphics/charts)
-    3. Use AI to describe each figure
+    1. Converts specified PDF pages to images
+    2. Uses vision AI to identify and describe figures
+    3. Returns both images and descriptions
     
-    Args:
-        file: PDF file
-        provider: "gemini" or "anthropic" for AI analysis
-        extract_embedded: Extract embedded images
-        render_pages: Render full pages as images
-        analyze_with_ai: Use vision AI to describe figures
-        dpi: Resolution for page rendering
-        pages: Comma-separated page numbers or "all"
-    
-    Returns:
-        JSON with extracted figures, images, and AI descriptions
+    Parameters:
+    - file: PDF file
+    - pages: Comma-separated page numbers (e.g., "1,3,5") or None for all pages
+    - provider: AI provider ("gemini" or "claude")
+    - dpi: Image resolution (default 200)
     """
-    try:
-        # Save uploaded file temporarily
-        with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp_file:
-            content = await file.read()
-            tmp_file.write(content)
-            tmp_path = tmp_file.name
-        
+    if not file.filename.endswith('.pdf'):
+        raise HTTPException(status_code=400, detail="Only PDF files are supported")
+    
+    # Parse pages parameter
+    page_list = None
+    if pages:
         try:
-            all_figures = []
-            
-            # 1. Extract embedded images
-            if extract_embedded:
-                embedded_images = extract_images_from_pdf(tmp_path)
-                
-                for img_data in embedded_images:
-                    figure_info = {
-                        "source": "embedded_image",
-                        "page": img_data["page"],
-                        "image_index": img_data.get("image_index"),
-                        "width": img_data["width"],
-                        "height": img_data["height"],
-                        "format": img_data["format"],
-                        "base64": img_data["base64"],
-                        "position": img_data.get("position")
-                    }
-                    
-                    # Analyze with AI if requested
-                    if analyze_with_ai:
-                        ai_description = describe_figure_with_ai(img_data["base64"], provider)
-                        figure_info["ai_analysis"] = ai_description
-                    
-                    all_figures.append(figure_info)
-            
-            # 2. Render pages as images (for vector graphics/charts)
-            if render_pages:
-                from pdf2image import pdfinfo_from_path
-                pdf_info = pdfinfo_from_path(tmp_path)
-                total_pages = pdf_info.get("Pages", 1)
-                
-                if pages == "all" or pages is None:
-                    page_numbers = list(range(1, total_pages + 1))
-                else:
-                    page_numbers = [int(p.strip()) for p in pages.split(",") if p.strip().isdigit()]
-                
-                for page_num in page_numbers:
-                    if page_num < 1 or page_num > total_pages:
-                        continue
-                    
-                    # Render single page
-                    images = convert_from_path(tmp_path, dpi=dpi, first_page=page_num, last_page=page_num)
-                    if images:
-                        img_byte_arr = io.BytesIO()
-                        images[0].save(img_byte_arr, format='PNG')
-                        img_byte_arr.seek(0)
-                        img_base64 = base64.b64encode(img_byte_arr.read()).decode('utf-8')
-                        
-                        figure_info = {
-                            "source": "page_render",
-                            "page": page_num,
-                            "width": images[0].width,
-                            "height": images[0].height,
-                            "format": "PNG",
-                            "dpi": dpi,
-                            "base64": img_base64
-                        }
-                        
-                        # Analyze with AI if requested
-                        if analyze_with_ai:
-                            ai_description = describe_figure_with_ai(img_base64, provider)
-                            figure_info["ai_analysis"] = ai_description
-                        
-                        all_figures.append(figure_info)
-            
+            page_list = [int(p.strip()) for p in pages.split(',')]
+        except:
+            raise HTTPException(status_code=400, detail="Invalid pages parameter")
+    
+    # Save uploaded file temporarily
+    with tempfile.NamedTemporaryFile(delete=False, suffix='.pdf') as tmp_file:
+        content = await file.read()
+        tmp_file.write(content)
+        tmp_path = tmp_file.name
+    
+    try:
+        # Extract page images
+        page_images = extract_page_images(tmp_path, page_list, dpi)
+        
+        if not page_images:
             return {
-                "success": True,
-                "provider": provider if analyze_with_ai else "none",
-                "figure_count": len(all_figures),
-                "figures": all_figures
+                "success": False,
+                "message": "No images extracted from PDF",
+                "figures": []
             }
         
-        finally:
-            # Clean up temp file
-            if os.path.exists(tmp_path):
-                os.unlink(tmp_path)
-    
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Figure extraction failed: {str(e)}")
-
-
-@router.post("/api/save-figure")
-async def save_figure(
-    figure_data: Dict[str, Any],
-    output_dir: str = "/tmp/figures"
-):
-    """
-    Save an extracted figure to disk
-    
-    Args:
-        figure_data: Figure data with base64 image
-        output_dir: Directory to save figures
-    
-    Returns:
-        File path of saved figure
-    """
-    try:
-        os.makedirs(output_dir, exist_ok=True)
-        
-        # Decode base64
-        image_bytes = base64.b64decode(figure_data["base64"])
-        
-        # Generate filename
-        page = figure_data.get("page", 0)
-        index = figure_data.get("image_index", 0)
-        source = figure_data.get("source", "unknown")
-        filename = f"figure_page{page}_{source}_{index}.png"
-        filepath = os.path.join(output_dir, filename)
-        
-        # Save file
-        with open(filepath, "wb") as f:
-            f.write(image_bytes)
+        # Analyze each page with vision AI
+        all_figures = []
+        for page_img in page_images:
+            if provider.lower() == "claude":
+                figures = analyze_page_with_claude(page_img["base64"], page_img["page"])
+            else:
+                figures = analyze_page_with_gemini(page_img["base64"], page_img["page"])
+            
+            all_figures.extend(figures)
         
         return {
             "success": True,
-            "filepath": filepath,
-            "filename": filename
+            "total_figures": len(all_figures),
+            "pages_analyzed": len(page_images),
+            "provider": provider,
+            "figures": all_figures
         }
     
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to save figure: {str(e)}")
+    finally:
+        # Clean up temp file
+        if os.path.exists(tmp_path):
+            os.unlink(tmp_path)

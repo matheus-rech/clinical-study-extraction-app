@@ -1,0 +1,81 @@
+{
+  "timestamp": "2025-11-08 14:10:47",
+  "test_pdf": "/home/ubuntu/clinical-study-extraction-app/test_samples/Won2024.pdf",
+  "tests": [
+    {
+      "name": "Server Health Check",
+      "passed": true,
+      "duration_seconds": 0.004102468490600586,
+      "details": {
+        "status_code": 200,
+        "response_time_ms": 4.10008430480957
+      }
+    },
+    {
+      "name": "API Documentation Accessible",
+      "passed": true,
+      "duration_seconds": 0.0028696060180664062,
+      "details": {
+        "status_code": 200,
+        "accessible": true
+      }
+    },
+    {
+      "name": "Enhanced Text Extraction",
+      "passed": false,
+      "duration_seconds": 0.004022121429443359,
+      "details": {
+        "status_code": 404,
+        "pages": 0,
+        "characters": 0,
+        "contains_key_terms": false
+      }
+    },
+    {
+      "name": "Vision Table Extraction (gemini)",
+      "passed": false,
+      "duration_seconds": 60.060436964035034,
+      "details": {
+        "error": "HTTPConnectionPool(host='localhost', port=8000): Read timed out. (read timeout=60)"
+      }
+    },
+    {
+      "name": "Vision Table Extraction (claude)",
+      "passed": false,
+      "duration_seconds": 60.036460161209106,
+      "details": {
+        "error": "HTTPConnectionPool(host='localhost', port=8000): Read timed out. (read timeout=60)"
+      }
+    },
+    {
+      "name": "Figure Extraction (gemini)",
+      "passed": false,
+      "duration_seconds": 90.0923330783844,
+      "details": {
+        "error": "HTTPConnectionPool(host='localhost', port=8000): Read timed out. (read timeout=90)"
+      }
+    },
+    {
+      "name": "Figure Extraction (claude)",
+      "passed": false,
+      "duration_seconds": 90.08879327774048,
+      "details": {
+        "error": "HTTPConnectionPool(host='localhost', port=8000): Read timed out. (read timeout=90)"
+      }
+    },
+    {
+      "name": "Performance Benchmarks",
+      "passed": false,
+      "duration_seconds": 30.029829502105713,
+      "details": {
+        "error": "HTTPConnectionPool(host='localhost', port=8000): Read timed out. (read timeout=30)"
+      }
+    }
+  ],
+  "summary": {
+    "total": 8,
+    "passed": 2,
+    "failed": 6,
+    "warnings": 0
+  }
+}
