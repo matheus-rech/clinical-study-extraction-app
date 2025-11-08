@@ -40,10 +40,11 @@ class Settings:
     ALLOWED_EXTENSIONS: List[str] = [
         ext.strip()
         for ext in os.getenv("ALLOWED_EXTENSIONS", "pdf").split(",")
+        if ext.strip()
     ]
 
     # OCR
-    TESSERACT_CMD: str = os.getenv("TESSERACT_CMD", "/usr/bin/tesseract")
+    TESSERACT_CMD: Optional[str] = os.getenv("TESSERACT_CMD", None)
 
     # API Keys (optional)
     OPENAI_API_KEY: Optional[str] = os.getenv("OPENAI_API_KEY")
@@ -53,7 +54,7 @@ class Settings:
     DATABASE_URL: Optional[str] = os.getenv("DATABASE_URL")
 
     # Logging
-    LOG_LEVEL: str = os.getenv("LOG_LEVEL", "INFO" if not DEBUG else "DEBUG")
+    LOG_LEVEL: str = os.getenv("LOG_LEVEL", "DEBUG" if DEBUG else "INFO")
     LOG_FORMAT: str = "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
 
     # Thread Pool

@@ -8,9 +8,9 @@ watermarking, encryption, and metadata extraction.
 import io
 from typing import List, Optional, Tuple, Dict
 from pypdf import PdfReader, PdfWriter, PdfMerger
-from pypdf.generic import RectangleObject
-from pypdf import Transformation
-import pdfplumber
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 class PDFManipulator:
@@ -152,7 +152,11 @@ class PDFManipulator:
 
     def add_watermark(self, pdf_bytes: bytes, watermark_text: str) -> bytes:
         """
-        Add text watermark to PDF
+        Add text watermark to PDF.
+
+        NOTE: This function is a placeholder and is not implemented.
+        A proper implementation requires the reportlab library to create a watermark overlay.
+        Currently, this function raises NotImplementedError.
 
         Args:
             pdf_bytes: PDF file as bytes
@@ -160,22 +164,13 @@ class PDFManipulator:
 
         Returns:
             Watermarked PDF as bytes
+
+        Raises:
+            NotImplementedError: This function is not implemented.
         """
-        reader = PdfReader(io.BytesIO(pdf_bytes))
-        writer = PdfWriter()
-
-        # For simplicity, we'll add a basic implementation
-        # In production, you'd want to use reportlab to create a proper watermark overlay
-        for page in reader.pages:
-            writer.add_page(page)
-            # Note: pypdf doesn't directly support text overlay
-            # This would require reportlab for proper implementation
-
-        output = io.BytesIO()
-        writer.write(output)
-        output.seek(0)
-
-        return output.read()
+        raise NotImplementedError(
+            "add_watermark is not implemented. Use reportlab to create a watermark overlay."
+        )
 
     def encrypt_pdf(self, pdf_bytes: bytes, password: str) -> bytes:
         """
@@ -275,6 +270,7 @@ class PDFManipulator:
                             })
                         except Exception as e:
                             # Skip images that can't be extracted
+                            logger.warning(f'Failed to extract image {obj_name} from page {page_num}: {e}')
                             continue
 
         return images

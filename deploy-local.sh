@@ -35,7 +35,9 @@ if [ ! -f .env.production ]; then
 fi
 
 echo -e "${BLUE}Loading environment variables...${NC}"
-export $(cat .env.production | grep -v '^#' | xargs)
+set -a
+source .env.production
+set +a
 
 echo -e "${BLUE}Building production images...${NC}"
 docker-compose -f docker-compose.prod.yml build
