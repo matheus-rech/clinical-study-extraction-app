@@ -28,7 +28,8 @@ This directory contains automated deployment workflows for the Clinical Study Ex
 
 **Optional:** Add Codecov integration:
 ```bash
-# Add CODECOV_TOKEN to repository secrets for coverage reports
+# For private repositories or more reliable uploads, add CODECOV_TOKEN to repository secrets
+# For public repositories, the token is not required
 # Get token from: https://codecov.io/
 ```
 
