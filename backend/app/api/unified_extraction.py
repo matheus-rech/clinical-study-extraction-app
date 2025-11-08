@@ -16,6 +16,7 @@ try:
     from app.api.camelot_table_extraction import extract_tables_camelot
     from app.api.tabula_table_extraction import extract_tables_tabula
     from app.api.improved_figure_extraction import extract_complete_figures
+    from app.api.olmocr_extraction import extract_tables_olmocr
 except ImportError:
     # Fallback for direct script execution
     import sys
@@ -25,6 +26,7 @@ except ImportError:
     from backend.app.api.camelot_table_extraction import extract_tables_camelot
     from backend.app.api.tabula_table_extraction import extract_tables_tabula
     from backend.app.api.improved_figure_extraction import extract_complete_figures
+    from backend.app.api.olmocr_extraction import extract_tables_olmocr
 
 logger = logging.getLogger(__name__)
 
@@ -38,7 +40,8 @@ class UnifiedExtractor:
     TABLE_METHODS = [
         ("pymupdf", extract_tables_pymupdf),
         ("camelot", extract_tables_camelot),
-        ("tabula", extract_tables_tabula)
+        ("tabula", extract_tables_tabula),
+        ("olmocr", extract_tables_olmocr)  # NEW: Allen AI VLM-based extraction
     ]
     
     # Priority order for figure extraction methods
@@ -48,7 +51,9 @@ class UnifiedExtractor:
     
     @staticmethod
     def extract_tables(pdf_path: str, page_num: Optional[int] = None, 
-                      method: Optional[str] = None) -> Dict[str, Any]:
+                      method: Optional[str] = None,
+                      olmocr_api_key: Optional[str] = None,
+                      enable_olmocr: bool = True) -> Dict[str, Any]:
         """
         Extract tables with intelligent fallback
         
@@ -77,13 +82,30 @@ class UnifiedExtractor:
         else:
             methods_to_try = UnifiedExtractor.TABLE_METHODS
         
+        # Get olmOCR API key from environment if not provided
+        if not olmocr_api_key:
+            olmocr_api_key = os.getenv("OLMOCR_API_KEY")
+        
         # Try each method in order
         for method_name, extract_func in methods_to_try:
+            # Skip olmOCR if disabled or no API key
+            if method_name == "olmocr":
+                if not enable_olmocr:
+                    logger.info("olmOCR disabled, skipping")
+                    continue
+                if not olmocr_api_key:
+                    logger.info("olmOCR API key not provided, skipping")
+                    continue
+            
             try:
                 logger.info(f"Trying table extraction with {method_name}")
                 results["methods_tried"].append(method_name)
                 
-                tables = extract_func(pdf_path, page_num)
+                # Call extraction function with API key if olmOCR
+                if method_name == "olmocr":
+                    tables = extract_func(pdf_path, page_num, api_key=olmocr_api_key)
+                else:
+                    tables = extract_func(pdf_path, page_num)
                 
                 if tables and len(tables) > 0:
                     results["success"] = True
@@ -175,7 +197,9 @@ class UnifiedExtractor:
 async def extract_tables_unified_endpoint(
     file: UploadFile = File(...),
     page: Optional[int] = None,
-    method: Optional[str] = None
+    method: Optional[str] = None,
+    enable_olmocr: bool = True,
+    olmocr_api_key: Optional[str] = None
 ):
     """
     Unified table extraction endpoint with multiple methods
@@ -183,7 +207,7 @@ async def extract_tables_unified_endpoint(
     Args:
         file: PDF file to extract from
         page: Optional page number (1-indexed)
-        method: Optional specific method ('pymupdf', 'camelot', 'tabula')
+        method: Optional specific method ('pymupdf', 'camelot', 'tabula', 'olmocr')
     """
     temp_file = None
     
@@ -195,7 +219,11 @@ async def extract_tables_unified_endpoint(
             temp_path = temp_file.name
         
         # Extract tables
-        results = UnifiedExtractor.extract_tables(temp_path, page, method)
+        results = UnifiedExtractor.extract_tables(
+            temp_path, page, method,
+            olmocr_api_key=olmocr_api_key,
+            enable_olmocr=enable_olmocr
+        )
         
         return JSONResponse(content=results)
         

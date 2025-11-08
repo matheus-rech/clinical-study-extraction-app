@@ -1,0 +1,31 @@
+{
+  "pymupdf": {
+    "success": true,
+    "duration": 3.922333240509033,
+    "table_count": 1
+  },
+  "camelot": {
+    "success": true,
+    "duration": 1.784520149230957,
+    "table_count": 1
+  },
+  "tabula": {
+    "success": true,
+    "duration": 1.532428503036499,
+    "table_count": 2
+  },
+  "olmocr": {
+    "success": true,
+    "duration": 33.89749360084534,
+    "table_count": 1
+  },
+  "unified": {
+    "success": true,
+    "method_used": "pymupdf",
+    "methods_tried": [
+      "pymupdf"
+    ],
+    "duration": 3.7696316242218018,
+    "table_count": 1
+  }
+}
