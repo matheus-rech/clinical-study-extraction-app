@@ -162,7 +162,13 @@ jobs:
 
           # Rollback using docker-compose
           docker-compose -f docker-compose.prod.yml down
-          git checkout HEAD~1
+          # Restore previous deployment from backup
+          if [ -d "../release_prev" ]; then
+            rsync -a --delete ../release_prev/ ./
+          else
+            echo "No backup found for rollback."
+            exit 1
+          fi
           docker-compose -f docker-compose.prod.yml up -d --build
 
           echo "Rolled back to previous version"
