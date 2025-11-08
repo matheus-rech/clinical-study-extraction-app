@@ -1180,6 +1180,8 @@
                     <option value="1.5">150%</option>
                 </select>
                 <button id="fit-width">Fit Width</button>
+                <button id="extract-tables-btn" title="Extract tables from current page using AI vision">📊 Extract Tables</button>
+                <button id="extract-figures-btn" title="Extract figures from current page using AI vision">🖼️ Extract Figures</button>
                 <span id="active-field-indicator">No field selected</span>
             </div>
             <div id="pdf-container" class="pdf-container">
@@ -1336,6 +1338,207 @@
             subscribe: (cb) => {
                 subscribers.add(cb);
                 return () => subscribers.delete(cb);
+            }
+        };
+
+        // ==================== VISION EXTRACTION ====================
+        const VisionExtractor = {
+            extractTables: async () => {
+                const state = AppStateManager.getState();
+                if (!state.pdfFile) {
+                    StatusManager.show('⚠️ Please load a PDF first', 'warning');
+                    return;
+                }
+
+                StatusManager.showLoading(true, 'Extracting tables with AI vision...');
+                
+                try {
+                    const formData = new FormData();
+                    formData.append('file', state.pdfFile);
+                    formData.append('pages', state.currentPage.toString());
+                    formData.append('provider', state.aiProvider || 'gemini');
+
+                    const response = await fetch(`${CONFIG.API_BASE_URL}/api/extract-tables-vision`, {
+                        method: 'POST',
+                        body: formData
+                    });
+
+                    if (!response.ok) {
+                        throw new Error(`API error: ${response.status}`);
+                    }
+
+                    const result = await response.json();
+                    
+                    if (result.tables && result.tables.length > 0) {
+                        StatusManager.show(`✅ Extracted ${result.tables.length} table(s) from page ${state.currentPage}`, 'success');
+                        VisionExtractor.displayTables(result.tables);
+                    } else {
+                        StatusManager.show(`ℹ️ No tables found on page ${state.currentPage}`, 'info');
+                    }
+                } catch (error) {
+                    console.error('Table extraction error:', error);
+                    StatusManager.show('❌ Table extraction failed: ' + error.message, 'error');
+                } finally {
+                    StatusManager.showLoading(false);
+                }
+            },
+
+            extractFigures: async () => {
+                const state = AppStateManager.getState();
+                if (!state.pdfFile) {
+                    StatusManager.show('⚠️ Please load a PDF first', 'warning');
+                    return;
+                }
+
+                StatusManager.showLoading(true, 'Extracting figures with AI vision...');
+                
+                try {
+                    const formData = new FormData();
+                    formData.append('file', state.pdfFile);
+                    formData.append('pages', state.currentPage.toString());
+                    formData.append('provider', state.aiProvider || 'gemini');
+
+                    const response = await fetch(`${CONFIG.API_BASE_URL}/api/extract-figures-complete`, {
+                        method: 'POST',
+                        body: formData
+                    });
+
+                    if (!response.ok) {
+                        throw new Error(`API error: ${response.status}`);
+                    }
+
+                    const result = await response.json();
+                    
+                    if (result.figures && result.figures.length > 0) {
+                        StatusManager.show(`✅ Extracted ${result.figures.length} figure(s) from page ${state.currentPage}`, 'success');
+                        VisionExtractor.displayFigures(result.figures);
+                    } else {
+                        StatusManager.show(`ℹ️ No figures found on page ${state.currentPage}`, 'info');
+                    }
+                } catch (error) {
+                    console.error('Figure extraction error:', error);
+                    StatusManager.show('❌ Figure extraction failed: ' + error.message, 'error');
+                } finally {
+                    StatusManager.showLoading(false);
+                }
+            },
+
+            displayTables: (tables) => {
+                // Create a modal or panel to display extracted tables
+                const modal = document.createElement('div');
+                modal.style.cssText = `
+                    position: fixed;
+                    top: 50%;
+                    left: 50%;
+                    transform: translate(-50%, -50%);
+                    background: white;
+                    padding: 30px;
+                    border-radius: 8px;
+                    box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+                    max-width: 80%;
+                    max-height: 80%;
+                    overflow-y: auto;
+                    z-index: 10000;
+                `;
+
+                let content = '<h2>📊 Extracted Tables</h2>';
+                tables.forEach((table, index) => {
+                    content += `
+                        <div style="margin: 20px 0; padding: 15px; border: 1px solid #ddd; border-radius: 4px;">
+                            <h3>Table ${index + 1}</h3>
+                            <p><strong>Page:</strong> ${table.page}</p>
+                            ${table.title ? `<p><strong>Title:</strong> ${table.title}</p>` : ''}
+                            <div style="margin-top: 10px; padding: 10px; background: #f5f5f5; border-radius: 4px; overflow-x: auto;">
+                                <pre style="margin: 0; white-space: pre-wrap;">${table.content}</pre>
+                            </div>
+                        </div>
+                    `;
+                });
+
+                content += '<button id="close-tables-modal" style="margin-top: 20px; padding: 10px 20px; background: #007bff; color: white; border: none; border-radius: 4px; cursor: pointer;">Close</button>';
+                
+                modal.innerHTML = content;
+                document.body.appendChild(modal);
+
+                // Add backdrop
+                const backdrop = document.createElement('div');
+                backdrop.style.cssText = `
+                    position: fixed;
+                    top: 0;
+                    left: 0;
+                    width: 100%;
+                    height: 100%;
+                    background: rgba(0,0,0,0.5);
+                    z-index: 9999;
+                `;
+                document.body.appendChild(backdrop);
+
+                // Close handlers
+                const closeModal = () => {
+                    modal.remove();
+                    backdrop.remove();
+                };
+                document.getElementById('close-tables-modal').onclick = closeModal;
+                backdrop.onclick = closeModal;
+            },
+
+            displayFigures: (figures) => {
+                // Create a modal or panel to display extracted figures
+                const modal = document.createElement('div');
+                modal.style.cssText = `
+                    position: fixed;
+                    top: 50%;
+                    left: 50%;
+                    transform: translate(-50%, -50%);
+                    background: white;
+                    padding: 30px;
+                    border-radius: 8px;
+                    box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+                    max-width: 80%;
+                    max-height: 80%;
+                    overflow-y: auto;
+                    z-index: 10000;
+                `;
+
+                let content = '<h2>🖼️ Extracted Figures</h2>';
+                figures.forEach((figure, index) => {
+                    content += `
+                        <div style="margin: 20px 0; padding: 15px; border: 1px solid #ddd; border-radius: 4px;">
+                            <h3>Figure ${index + 1}</h3>
+                            <p><strong>Page:</strong> ${figure.page}</p>
+                            ${figure.title ? `<p><strong>Title:</strong> ${figure.title}</p>` : ''}
+                            ${figure.type ? `<p><strong>Type:</strong> ${figure.type}</p>` : ''}
+                            ${figure.description ? `<p><strong>Description:</strong> ${figure.description}</p>` : ''}
+                            ${figure.image_path ? `<img src="${CONFIG.API_BASE_URL}${figure.image_path}" style="max-width: 100%; margin-top: 10px; border: 1px solid #ddd; border-radius: 4px;" />` : ''}
+                        </div>
+                    `;
+                });
+
+                content += '<button id="close-figures-modal" style="margin-top: 20px; padding: 10px 20px; background: #007bff; color: white; border: none; border-radius: 4px; cursor: pointer;">Close</button>';
+                
+                modal.innerHTML = content;
+                document.body.appendChild(modal);
+
+                // Add backdrop
+                const backdrop = document.createElement('div');
+                backdrop.style.cssText = `
+                    position: fixed;
+                    top: 0;
+                    left: 0;
+                    width: 100%;
+                    height: 100%;
+                    background: rgba(0,0,0,0.5);
+                    z-index: 9999;
+                `;
+                document.body.appendChild(backdrop);
+
+                // Close handlers
+                const closeModal = () => {
+                    modal.remove();
+                    backdrop.remove();
+                };
+                document.getElementById('close-figures-modal').onclick = closeModal;
+                backdrop.onclick = closeModal;
             }
         };
 
@@ -2947,6 +3150,15 @@
                     console.error("Fit Width Error:", error);
                     StatusManager.show("Could not fit PDF to width", "error");
                 }
+            };
+
+            // Table and Figure Extraction
+            document.getElementById('extract-tables-btn').onclick = async () => {
+                await VisionExtractor.extractTables();
+            };
+
+            document.getElementById('extract-figures-btn').onclick = async () => {
+                await VisionExtractor.extractFigures();
             };
 
             // Drag & Drop
