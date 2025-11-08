@@ -149,7 +149,7 @@ jobs:
           rm -rf hf-space
 
       - name: 📝 Create deployment summary
-        if: success()
+        if: success( )
         run: |
           echo "## 🚀 Deployment to Hugging Face Spaces Successful!" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
@@ -165,34 +165,11 @@ jobs:
           echo "- **API Docs:** https://${{ secrets.HF_USERNAME }}-clinical-study-extraction.hf.space/docs" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "### 📊 Build Info" >> $GITHUB_STEP_SUMMARY
-          echo "- Build time: $(date)" >> $GITHUB_STEP_SUMMARY
+          echo "- Build time: $(date )" >> $GITHUB_STEP_SUMMARY
           echo "- Workflow: ${{ github.workflow }}" >> $GITHUB_STEP_SUMMARY
           echo "- Run ID: ${{ github.run_id }}" >> $GITHUB_STEP_SUMMARY
 
-      - name: 💬 Notify Slack on success
-        if: success() && secrets.SLACK_WEBHOOK != ''
-        uses: 8398a7/action-slack@v3
-        with:
-          status: success
-          text: |
-            ✅ Deployment to Hugging Face Spaces successful!
-            Space: ${{ secrets.HF_USERNAME }}/clinical-study-extraction
-            Branch: ${{ github.ref_name }}
-            Commit: ${{ github.sha }}
-            URL: https://${{ secrets.HF_USERNAME }}-clinical-study-extraction.hf.space
-          webhook_url: ${{ secrets.SLACK_WEBHOOK }}
 
-      - name: 💬 Notify Slack on failure
-        if: failure() && secrets.SLACK_WEBHOOK != ''
-        uses: 8398a7/action-slack@v3
-        with:
-          status: failure
-          text: |
-            ❌ Deployment to Hugging Face Spaces failed!
-            Branch: ${{ github.ref_name }}
-            Commit: ${{ github.sha }}
-            Check logs: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
-          webhook_url: ${{ secrets.SLACK_WEBHOOK }}
 
   # Job 3: Deploy to Staging Space (Develop branch)
   deploy-staging:
@@ -241,7 +218,7 @@ jobs:
           rm -rf hf-staging
 
       - name: 📝 Create staging summary
-        if: success()
+        if: success( )
         run: |
           echo "## 🧪 Staging Deployment Successful!" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
@@ -300,7 +277,7 @@ jobs:
           fi
 
       - name: 📝 Create validation summary
-        if: success()
+        if: success( )
         run: |
           echo "## ✅ Deployment Validation Successful!" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
@@ -339,15 +316,3 @@ jobs:
           
           cd ..
           rm -rf hf-space
-
-      - name: 💬 Notify rollback
-        if: always()
-        uses: 8398a7/action-slack@v3
-        with:
-          status: ${{ job.status }}
-          text: |
-            🔄 Rollback triggered by ${{ github.actor }}
-            Status: ${{ job.status }}
-            Space: ${{ secrets.HF_USERNAME }}/clinical-study-extraction
-          webhook_url: ${{ secrets.SLACK_WEBHOOK }}
-        continue-on-error: true
