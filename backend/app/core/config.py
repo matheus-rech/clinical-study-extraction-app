@@ -37,7 +37,10 @@ class Settings:
 
     # File Upload
     MAX_FILE_SIZE: int = int(os.getenv("MAX_FILE_SIZE", "50000000"))  # 50MB
-    ALLOWED_EXTENSIONS: List[str] = os.getenv("ALLOWED_EXTENSIONS", "pdf").split(",")
+    ALLOWED_EXTENSIONS: List[str] = [
+        ext.strip()
+        for ext in os.getenv("ALLOWED_EXTENSIONS", "pdf").split(",")
+    ]
 
     # OCR
     TESSERACT_CMD: str = os.getenv("TESSERACT_CMD", "/usr/bin/tesseract")
