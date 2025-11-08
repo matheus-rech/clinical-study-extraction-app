@@ -8,7 +8,6 @@ watermarking, encryption, and metadata extraction.
 import io
 from typing import List, Optional, Tuple, Dict
 from pypdf import PdfReader, PdfWriter, PdfMerger
-from pypdf.generic import RectangleObject
 class PDFManipulator:
     """Utility class for PDF manipulation operations"""
 
