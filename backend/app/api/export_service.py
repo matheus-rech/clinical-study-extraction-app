@@ -126,3 +126,104 @@ async def export_annotated(file: UploadFile = File(...), tables: str = "[]"):
         media_type="application/pdf",
         headers={"Content-Disposition": f"attachment; filename=annotated_{file.filename}"}
     )
+
+@router.post("/api/export/tables/json")
+async def export_json(tables: List[Dict[str, Any]], pretty: bool = True):
+    """Export tables to JSON format"""
+    export_data = {
+        "extraction_metadata": {
+            "total_tables": len(tables),
+            "export_format": "json",
+            "version": "1.0"
+        },
+        "tables": tables
+    }
+    
+    json_content = json.dumps(export_data, indent=2 if pretty else None, ensure_ascii=False)
+    return Response(
+        content=json_content,
+        media_type="application/json",
+        headers={"Content-Disposition": "attachment; filename=tables.json"}
+    )
+
+@router.post("/api/export/tables/html")
+async def export_html(tables: List[Dict[str, Any]]):
+    """Export tables to HTML format with styling"""
+    html_parts = [
+        '<!DOCTYPE html>',
+        '<html lang="en">',
+        '<head>',
+        '    <meta charset="UTF-8">',
+        '    <meta name="viewport" content="width=device-width, initial-scale=1.0">',
+        '    <title>Extracted Tables</title>',
+        '    <style>',
+        '        body { font-family: Arial, sans-serif; margin: 20px; background: #f5f5f5; }',
+        '        .container { max-width: 1200px; margin: 0 auto; background: white; padding: 30px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }',
+        '        h1 { color: #333; border-bottom: 3px solid #4472C4; padding-bottom: 10px; }',
+        '        .table-container { margin: 30px 0; }',
+        '        .table-header { background: #4472C4; color: white; padding: 15px; margin-bottom: 10px; border-radius: 5px; }',
+        '        .table-info { font-size: 14px; color: #666; margin-bottom: 10px; }',
+        '        table { width: 100%; border-collapse: collapse; margin-bottom: 30px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }',
+        '        th { background: #4472C4; color: white; padding: 12px; text-align: left; font-weight: bold; }',
+        '        td { padding: 10px; border: 1px solid #ddd; }',
+        '        tr:nth-child(even) { background: #f9f9f9; }',
+        '        tr:hover { background: #f0f0f0; }',
+        '        .metadata { background: #e7f3ff; padding: 15px; border-left: 4px solid #4472C4; margin-bottom: 20px; }',
+        '    </style>',
+        '</head>',
+        '<body>',
+        '    <div class="container">',
+        '        <h1>📊 Extracted Tables Report</h1>',
+        f'        <div class="metadata">',
+        f'            <strong>Total Tables:</strong> {len(tables)}<br>',
+        f'            <strong>Export Format:</strong> HTML<br>',
+        f'            <strong>Generated:</strong> {json.dumps(tables[0].get("page") if tables else "N/A")}',
+        '        </div>',
+    ]
+    
+    for idx, table in enumerate(tables, 1):
+        html_parts.extend([
+            f'        <div class="table-container">',
+            f'            <div class="table-header">',
+            f'                <h2 style="margin:0;">Table {idx}</h2>',
+            f'            </div>',
+            f'            <div class="table-info">',
+            f'                📄 Page: {table.get("page", "N/A")} | ',
+            f'                📏 Dimensions: {table.get("rows", "N/A")} rows × {table.get("cols", "N/A")} cols | ',
+            f'                🔧 Method: {table.get("extraction_method", "N/A")}',
+            f'            </div>',
+        ])
+        
+        # Convert markdown table to HTML
+        markdown = table.get('markdown', '')
+        if markdown:
+            html_parts.append('            <table>')
+            lines = markdown.split('\n')
+            is_header = True
+            
+            for line in lines:
+                if line.strip() and not line.strip().startswith('|---'):
+                    cells = [c.strip() for c in line.strip('|').split('|')]
+                    tag = 'th' if is_header else 'td'
+                    html_parts.append('                <tr>')
+                    for cell in cells:
+                        html_parts.append(f'                    <{tag}>{cell}</{tag}>')
+                    html_parts.append('                </tr>')
+                    is_header = False
+            
+            html_parts.append('            </table>')
+        
+        html_parts.append('        </div>')
+    
+    html_parts.extend([
+        '    </div>',
+        '</body>',
+        '</html>'
+    ])
+    
+    html_content = '\n'.join(html_parts)
+    return Response(
+        content=html_content,
+        media_type="text/html",
+        headers={"Content-Disposition": "attachment; filename=tables.html"}
+    )

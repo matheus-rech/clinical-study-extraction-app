@@ -1,0 +1,23 @@
+{
+  "extraction_metadata": {
+    "total_tables": 1,
+    "export_format": "json",
+    "version": "1.0"
+  },
+  "tables": [
+    {
+      "table_index": 0,
+      "page": 4,
+      "markdown": "| Table. Baseline Characteristics of Surgically and Conservatively Treated Patients With Cerebellar Infarct |  |  |  |  |\n| --- | --- | --- | --- | --- |\n| Characteristic | Nonmatched cohort (n = 531) Propensity score–matched cohort (n = 142) |  |  |  |\n|  | No. (%) | OR\n(95% CI) P valuea | No. (%) | OR\n(95% CI) P valueb |\n|  | Surgery Conservative\n(n = 127) (n = 404) |  | Surgery Conservative\n(n = 71) (n = 71) |  |\n| Age, mean (SD), y 66.1 (13.0) 69.5 (14.9) NA .002 62.6 (12.7) 66.3 (14.8) NA .02 |  |  |  |  |\n| Sex (female) |  |  |  |  |\n| Female 59 (46.5) 171 (42.3) |  | 1.2 (0.8-1.8) .41 | 23 (32.4) 23 (32.4) | 1.0 (1.0-1.0) >.99 |\n| Male 68 (53.5) 233 (57.7) |  |  | 48 (67.6) 48 (67.6) |  |",
+      "bbox": {
+        "x0": 72.31199645996094,
+        "y0": 66.0643310546875,
+        "x1": 539.2798614501953,
+        "y1": 172.1801011827257
+      },
+      "rows": 8,
+      "cols": 5,
+      "extraction_method": "pymupdf_find_tables"
+    }
+  ]
+}
