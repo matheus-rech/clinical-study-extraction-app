@@ -32,6 +32,9 @@ jobs:
         echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_rsa
         chmod 600 ~/.ssh/id_rsa
         ssh-keyscan -H ${{ secrets.VPS_HOST }} >> ~/.ssh/known_hosts
+        if [ $? -ne 0 ]; then
+          echo "Warning: ssh-keyscan failed for ${{ secrets.VPS_HOST }}. known_hosts may not be correctly populated."
+        fi
 
     - name: Create .env.production file
       run: |
