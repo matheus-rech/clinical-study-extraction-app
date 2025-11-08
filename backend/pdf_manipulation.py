@@ -6,8 +6,13 @@ watermarking, encryption, and metadata extraction.
 """
 
 import io
+import logging
 from typing import List, Optional, Tuple, Dict
 from pypdf import PdfReader, PdfWriter, PdfMerger
+
+logger = logging.getLogger(__name__)
+
+
 class PDFManipulator:
     """Utility class for PDF manipulation operations"""
 
@@ -166,6 +171,7 @@ class PDFManipulator:
         raise NotImplementedError(
             "add_watermark is not implemented. Use reportlab to create a watermark overlay."
         )
+
     def encrypt_pdf(self, pdf_bytes: bytes, password: str) -> bytes:
         """
         Add password protection to PDF
@@ -264,6 +270,7 @@ class PDFManipulator:
                             })
                         except Exception as e:
                             # Skip images that can't be extracted
+                            logger.warning(f'Failed to extract image {obj_name} from page {page_num}: {e}')
                             continue
 
         return images

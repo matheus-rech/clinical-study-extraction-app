@@ -16,7 +16,7 @@ services:
       - CORS_ORIGINS=${CORS_ORIGINS:-http://localhost:3000}
       - MAX_FILE_SIZE=${MAX_FILE_SIZE:-50000000}
       - LOG_LEVEL=${LOG_LEVEL:-INFO}
-      - SECRET_KEY=${SECRET_KEY:-please-change-this-in-production}
+      - SECRET_KEY=${SECRET_KEY:?SECRET_KEY is required}
       - ENTREZ_EMAIL=${ENTREZ_EMAIL:-your-email@example.com}
     restart: unless-stopped
     healthcheck:
