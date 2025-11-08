@@ -64,8 +64,8 @@ ENTREZ_EMAIL=your-email@example.com
 ### 3. Test Locally
 
 ```bash
-# Load environment variables
-export $(cat .env.production | xargs)
+# Load environment variables safely
+set -a; source .env.production; set +a
 
 # Start production containers
 docker-compose -f docker-compose.prod.yml up -d
