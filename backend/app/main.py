@@ -21,6 +21,14 @@ import base64
 import asyncio
 from concurrent.futures import ThreadPoolExecutor
 import logging
+import os
+import sys
+
+# Add parent directory to path for imports
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+# Configuration
+from app.core.config import settings
 
 # PDF Processing
 import pdfplumber
@@ -43,26 +51,43 @@ import re
 from pdf_manipulation import PDFManipulator
 
 # Configure logging
-logging.basicConfig(level=logging.INFO)
+logging.basicConfig(
+    level=getattr(logging, settings.LOG_LEVEL),
+    format=settings.LOG_FORMAT
+)
 logger = logging.getLogger(__name__)
 
-# Initialize FastAPI
-app = FastAPI(title="Clinical Study PDF Processor")
+# Log startup configuration
+logger.info(f"Starting {settings.APP_NAME} v{settings.APP_VERSION}")
+logger.info(f"Environment: {settings.ENVIRONMENT}")
+logger.info(f"Debug mode: {settings.DEBUG}")
+logger.info(f"CORS origins: {settings.CORS_ORIGINS}")
 
-# CORS middleware for frontend access
+# Initialize FastAPI
+app = FastAPI(
+    title=settings.APP_NAME,
+    version=settings.APP_VERSION,
+    debug=settings.DEBUG
+)
+
+# CORS middleware with environment-based configuration
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Configure appropriately for production
+    allow_origins=settings.CORS_ORIGINS,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
 # Configure Entrez for PubMed
-Entrez.email = "matheusrech@example.com"  # IMPORTANT: Set your email
+Entrez.email = os.getenv("ENTREZ_EMAIL", "your-email@example.com")
+
+# Configure Tesseract path if specified
+if settings.TESSERACT_CMD:
+    pytesseract.pytesseract.tesseract_cmd = settings.TESSERACT_CMD
 
 # Thread pool for CPU-intensive operations
-executor = ThreadPoolExecutor(max_workers=4)
+executor = ThreadPoolExecutor(max_workers=settings.MAX_WORKERS)
 
 
 # ==================== TABLE EXTRACTION ====================
