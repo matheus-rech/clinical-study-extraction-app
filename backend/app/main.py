@@ -23,6 +23,7 @@ from concurrent.futures import ThreadPoolExecutor
 import logging
 import os
 import sys
+import tempfile
 
 # Add parent directory to path for imports
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -49,6 +50,11 @@ import re
 
 # PDF Manipulation
 from pdf_manipulation import PDFManipulator
+
+# Advanced extraction routers
+from app.api.advanced_extraction import router as advanced_router
+from app.api.vision_extraction import router as vision_router
+from app.api.figure_extraction import router as figure_router
 
 # Configure logging
 logging.basicConfig(
@@ -88,6 +94,11 @@ if settings.TESSERACT_CMD:
 
 # Thread pool for CPU-intensive operations
 executor = ThreadPoolExecutor(max_workers=settings.MAX_WORKERS)
+
+# Include advanced extraction routers
+app.include_router(advanced_router)
+app.include_router(vision_router)
+app.include_router(figure_router)
 
 
 # ==================== TABLE EXTRACTION ====================
@@ -989,3 +1000,56 @@ async def root():
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8000, log_level="info")
+
+
+# ==================== ENHANCED TEXT EXTRACTION FOR AI ====================
+
+@app.post("/api/extract-text-for-ai")
+async def extract_text_for_ai(file: UploadFile = File(...)):
+    """
+    Extract text from PDF optimized for AI processing.
+    Uses layout-preserved extraction with pdfplumber for better quality.
+    """
+    if not file.filename.endswith('.pdf'):
+        raise HTTPException(status_code=400, detail="File must be a PDF")
+    
+    try:
+        # Save uploaded file temporarily
+        with tempfile.NamedTemporaryFile(delete=False, suffix='.pdf') as tmp_file:
+            content = await file.read()
+            tmp_file.write(content)
+            tmp_path = tmp_file.name
+        
+        pages_text = []
+        full_text_parts = []
+        
+        with pdfplumber.open(tmp_path) as pdf:
+            for page_num, page in enumerate(pdf.pages, start=1):
+                # Extract text with layout preservation
+                text = page.extract_text(layout=True)
+                
+                if text:
+                    pages_text.append({
+                        'page': page_num,
+                        'text': text,
+                        'char_count': len(text)
+                    })
+                    full_text_parts.append(f"[PAGE {page_num}]\n{text}\n")
+        
+        # Clean up temp file
+        os.unlink(tmp_path)
+        
+        full_text = "\n".join(full_text_parts)
+        
+        return {
+            'full_text': full_text,
+            'pages': pages_text,
+            'total_pages': len(pages_text),
+            'total_characters': len(full_text)
+        }
+    
+    except Exception as e:
+        if 'tmp_path' in locals() and os.path.exists(tmp_path):
+            os.unlink(tmp_path)
+        logger.error(f"Enhanced text extraction error: {e}")
+        raise HTTPException(status_code=500, detail=f"Error extracting text: {str(e)}")

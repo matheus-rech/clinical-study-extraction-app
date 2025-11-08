@@ -7,7 +7,7 @@ watermarking, encryption, and metadata extraction.
 
 import io
 from typing import List, Optional, Tuple, Dict
-from pypdf import PdfReader, PdfWriter, PdfMerger
+from pypdf import PdfReader, PdfWriter
 class PDFManipulator:
     """Utility class for PDF manipulation operations"""
 
@@ -21,15 +21,16 @@ class PDFManipulator:
         Returns:
             Merged PDF as bytes
         """
-        merger = PdfMerger()
+        writer = PdfWriter()
 
         for pdf_bytes in pdf_bytes_list:
             pdf_file = io.BytesIO(pdf_bytes)
-            merger.append(pdf_file)
+            reader = PdfReader(pdf_file)
+            for page in reader.pages:
+                writer.add_page(page)
 
         output = io.BytesIO()
-        merger.write(output)
-        merger.close()
+        writer.write(output)
         output.seek(0)
 
         return output.read()

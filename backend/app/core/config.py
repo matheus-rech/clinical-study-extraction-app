@@ -31,7 +31,7 @@ class Settings:
         origin.strip()
         for origin in os.getenv(
             "CORS_ORIGINS",
-            "http://localhost:3000,http://localhost:5173"
+            "*"
         ).split(",")
     ]
 
@@ -40,9 +40,6 @@ class Settings:
     ALLOWED_EXTENSIONS: List[str] = [
         ext.strip() for ext in os.getenv("ALLOWED_EXTENSIONS", "pdf").split(",") if ext.strip()
     ]
-        ext.strip()
-        for ext in os.getenv("ALLOWED_EXTENSIONS", "pdf").split(",")
-    TESSERACT_CMD: Optional[str] = os.getenv("TESSERACT_CMD", None)
 
     # OCR
     TESSERACT_CMD: str = os.getenv("TESSERACT_CMD", "/usr/bin/tesseract")
@@ -50,9 +47,6 @@ class Settings:
     # API Keys (optional)
     OPENAI_API_KEY: Optional[str] = os.getenv("OPENAI_API_KEY")
     GEMINI_API_KEY: Optional[str] = os.getenv("GEMINI_API_KEY")
-
-    # Database (if needed in future)
-    LOG_LEVEL: str = os.getenv("LOG_LEVEL", "DEBUG" if DEBUG else "INFO")
 
     # Logging
     LOG_LEVEL: str = os.getenv("LOG_LEVEL", "INFO" if not DEBUG else "DEBUG")
