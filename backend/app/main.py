@@ -56,6 +56,7 @@ from app.api.advanced_extraction import router as advanced_router
 from app.api.vision_extraction import router as vision_router
 from app.api.figure_extraction import router as figure_router
 from app.api.unified_extraction import router as unified_router
+from app.api.export_service import router as export_router
 
 # Configure logging
 logging.basicConfig(
@@ -101,6 +102,7 @@ app.include_router(advanced_router)
 app.include_router(vision_router)
 app.include_router(figure_router)
 app.include_router(unified_router)
+app.include_router(export_router)
 
 
 # ==================== TABLE EXTRACTION ====================
