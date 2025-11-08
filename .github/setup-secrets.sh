@@ -40,9 +40,9 @@ echo ""
 
 # Function to set a secret
 set_secret() {
-    local secret_name=$1
-    local secret_description=$2
-    local is_required=$3
+    local secret_name="$1"
+    local secret_description="$2"
+    local is_required="$3"
 
     echo -e "${YELLOW}${secret_name}${NC}"
     echo "  Description: ${secret_description}"
