@@ -8,11 +8,6 @@ watermarking, encryption, and metadata extraction.
 import io
 from typing import List, Optional, Tuple, Dict
 from pypdf import PdfReader, PdfWriter, PdfMerger
-import logging
-
-logger = logging.getLogger(__name__)
-
-
 class PDFManipulator:
     """Utility class for PDF manipulation operations"""
 
@@ -172,6 +167,12 @@ class PDFManipulator:
             "add_watermark is not implemented. Use reportlab to create a watermark overlay."
         )
 
+        Raises:
+            NotImplementedError: This function is not implemented.
+        """
+        raise NotImplementedError(
+            "add_watermark is not implemented. Use reportlab to create a watermark overlay."
+        )
     def encrypt_pdf(self, pdf_bytes: bytes, password: str) -> bytes:
         """
         Add password protection to PDF

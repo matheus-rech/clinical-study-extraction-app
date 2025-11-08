@@ -38,10 +38,11 @@ class Settings:
     # File Upload
     MAX_FILE_SIZE: int = int(os.getenv("MAX_FILE_SIZE", "50000000"))  # 50MB
     ALLOWED_EXTENSIONS: List[str] = [
+        ext.strip() for ext in os.getenv("ALLOWED_EXTENSIONS", "pdf").split(",") if ext.strip()
+    ]
         ext.strip()
         for ext in os.getenv("ALLOWED_EXTENSIONS", "pdf").split(",")
-        if ext.strip()
-    ]
+    TESSERACT_CMD: Optional[str] = os.getenv("TESSERACT_CMD", None)
 
     # OCR
     TESSERACT_CMD: Optional[str] = os.getenv("TESSERACT_CMD", None)
@@ -51,7 +52,7 @@ class Settings:
     GEMINI_API_KEY: Optional[str] = os.getenv("GEMINI_API_KEY")
 
     # Database (if needed in future)
-    DATABASE_URL: Optional[str] = os.getenv("DATABASE_URL")
+    LOG_LEVEL: str = os.getenv("LOG_LEVEL", "DEBUG" if DEBUG else "INFO")
 
     # Logging
     LOG_LEVEL: str = os.getenv("LOG_LEVEL", "DEBUG" if DEBUG else "INFO")
@@ -92,7 +93,7 @@ class Settings:
                 raise ValueError("CORS_ORIGINS cannot be '*' in production!")
 
             if self.DEBUG:
-                print("WARNING: DEBUG mode is enabled in production!")
+                raise ValueError("DEBUG mode must not be enabled in production!")
 
     def __repr__(self) -> str:
         """String representation (hide sensitive data)"""
