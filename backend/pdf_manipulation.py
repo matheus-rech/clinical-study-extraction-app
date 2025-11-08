@@ -10,9 +10,6 @@ from typing import List, Optional, Tuple, Dict
 from pypdf import PdfReader, PdfWriter, PdfMerger
 from pypdf.generic import RectangleObject
 from pypdf import Transformation
-import pdfplumber
-
-
 class PDFManipulator:
     """Utility class for PDF manipulation operations"""
 
