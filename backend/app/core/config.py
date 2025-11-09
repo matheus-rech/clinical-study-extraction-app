@@ -5,12 +5,16 @@ Environment-aware configuration with validation and type safety.
 """
 
 import os
+import logging
 from typing import List, Optional
 from dotenv import load_dotenv
 from functools import lru_cache
 
 # Load environment variables from .env file
 load_dotenv()
+
+# Set up logger for this module
+logger = logging.getLogger(__name__)
 
 
 class Settings:

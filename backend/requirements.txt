@@ -1,7 +1,7 @@
 # FastAPI and server
 fastapi==0.104.1
 uvicorn[standard]==0.24.0
-python-multipart==0.0.18
+python-multipart==0.0.9
 
 # PDF processing
 pypdf==6.1.3
@@ -9,6 +9,14 @@ pdfplumber==0.10.3
 pypdfium2==4.24.0
 Pillow==10.3.0
 pdf2image==1.16.3
+pymupdf==1.26.6
+
+# Table extraction
+camelot-py[cv]==1.0.9
+tabula-py==2.10.0
+
+# Excel export
+openpyxl==3.1.5
 
 # Image processing
 numpy==1.26.2
