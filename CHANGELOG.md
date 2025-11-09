@@ -2,6 +2,14 @@
 
 All notable changes to the Clinical Study Extraction System.
 
+## [Unreleased]
+
+### Fixed
+- **Dependency Conflicts** (`backend/requirements.txt`)
+  - Updated pypdfium2 from ==4.24.0 to >=4.27.0,<5.0.0 to satisfy camelot-py requirements
+  - Removed opencv-python as camelot-py[cv] installs opencv-python-headless automatically
+  - Resolved pip dependency resolution conflicts preventing installation
+
 ## [2.0.0] - 2025-11-08 - Production Ready Release
 
 ### Added
