@@ -12,7 +12,7 @@ pdf2image==1.16.3
 pymupdf==1.26.6
 
 # Table extraction
-camelot-py[cv]>=1.0.9
+camelot-py[cv]==1.0.9
 tabula-py==2.10.0
 pandas==2.1.3
 
