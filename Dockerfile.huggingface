@@ -45,18 +45,11 @@ COPY --chown=user backend/requirements.txt .
 
 # Install Python dependencies
 RUN pip install --no-cache-dir --upgrade pip && \
-    pip install --no-cache-dir -r requirements.txt && \
-    pip install --no-cache-dir \
-        pymupdf==1.26.6 \
-        camelot-py[cv]==1.0.9 \
-        tabula-py==2.10.0 \
-        openpyxl==3.1.5 \
-        python-multipart==0.0.9
+    pip install --no-cache-dir -r requirements.txt
 
 # Copy application code
 COPY --chown=user backend/app $HOME/app/app
-COPY --chown=user backend/alembic $HOME/app/alembic
-COPY --chown=user backend/alembic.ini $HOME/app/
+COPY --chown=user backend/pdf_manipulation.py $HOME/app/
 
 # Create necessary directories
 RUN mkdir -p $HOME/app/uploads $HOME/app/exports $HOME/app/cache
