@@ -978,8 +978,8 @@ async def extract_images(file: UploadFile = File(...)):
 
 @app.get("/health")
 async def health_check():
-    """Health check endpoint"""
-    return {"status": "healthy", "service": "PDF Processing API"}
+    """Health check endpoint for deployment validation"""
+    return {"status": "ok", "service": "PDF Processing API", "version": settings.APP_VERSION}
 
 
 @app.get("/")

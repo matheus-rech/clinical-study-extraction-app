@@ -311,25 +311,25 @@ jobs:
     steps:
       - name: ⏳ Wait for Space to be ready
         run: |
-          echo "⏳ Waiting 60 seconds for Space to build and start..."
-          sleep 60
+          echo "⏳ Waiting 120 seconds for Space to build and start..."
+          sleep 120
 
       - name: 🏥 Health Check
         run: |
           SPACE_URL="https://${{ secrets.HF_USERNAME }}-clinical-study-extraction.hf.space"
           
           echo "🔍 Checking health endpoint..."
-          for i in {1..5}; do
+          for i in {1..10}; do
             if curl -f -s "$SPACE_URL/health" > /dev/null; then
               echo "✅ Health check passed!"
               curl -s "$SPACE_URL/health" | jq .
               exit 0
             fi
-            echo "⏳ Attempt $i failed, waiting 30 seconds..."
-            sleep 30
+            echo "⏳ Attempt $i failed, waiting 60 seconds..."
+            sleep 60
           done
           
-          echo "❌ Health check failed after 5 attempts"
+          echo "❌ Health check failed after 10 attempts"
           exit 1
 
       - name: 📊 Test API Endpoints
