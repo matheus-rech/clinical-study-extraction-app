@@ -83,11 +83,22 @@ Visit `https://YOUR-SPACE-NAME.hf.space/docs` for interactive API documentation.
 
 ### Environment Variables
 
-Set these in your Space Settings:
+The following environment variables are **pre-configured in the Dockerfile** for production deployment:
+
+- `ENVIRONMENT=production` - Application environment (production mode)
+- `DEBUG=False` - Debug mode disabled for production
+- `HOST=0.0.0.0` - Listen on all interfaces
+- `PORT=7860` - Hugging Face Spaces required port
+
+### Optional Configuration
+
+Set these in your Space Settings (Settings → Repository secrets) for enhanced features:
 
 - `OLMOCR_API_KEY` - DeepInfra API key for VLM extraction (optional)
 - `OLMOCR_PROVIDER` - Provider name (default: deepinfra)
 - `OLMOCR_ENABLED` - Enable olmOCR fallback (default: true)
+- `GEMINI_API_KEY` - Google Gemini API key (optional)
+- `ANTHROPIC_API_KEY` - Anthropic API key (optional)
 
 ### Secrets Management
 
@@ -95,6 +106,7 @@ For sensitive keys, use Hugging Face Spaces Secrets:
 1. Go to Space Settings
 2. Add secrets under "Repository secrets"
 3. They'll be available as environment variables
+4. Never commit secrets to the repository
 
 ## 📊 Extraction Methods Comparison
 
