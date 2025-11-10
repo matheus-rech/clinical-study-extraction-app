@@ -14,7 +14,13 @@ ENV HOME=/home/user \
     ENVIRONMENT=production \
     DEBUG=False \
     HOST=0.0.0.0 \
-    PORT=7860
+    PORT=7860 \
+    LOG_LEVEL=INFO \
+    MAX_FILE_SIZE=100000000 \
+    CORS_ORIGINS=* \
+    UPLOAD_DIR=/home/user/app/uploads \
+    EXPORT_DIR=/home/user/app/exports \
+    CACHE_DIR=/home/user/app/cache
 
 # Set working directory
 WORKDIR $HOME/app
