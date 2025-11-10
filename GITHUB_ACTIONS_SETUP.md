@@ -34,18 +34,25 @@ Automatically deploy to Hugging Face Spaces when you push to GitHub!
 4. Click **Generate**
 5. **Copy the token** (you won't see it again!)
 
-### Step 2: Add GitHub Secrets (2 minutes)
+### Step 2: Add GitHub Secrets (2 minutes) ⚠️ REQUIRED
 
 1. Go to your GitHub repository
 2. Click **Settings** → **Secrets and variables** → **Actions**
 3. Click **New repository secret**
 
-Add these secrets:
+Add these secrets (both are **REQUIRED**):
 
-| Secret Name | Value | Example |
-|-------------|-------|---------|
-| `HF_TOKEN` | Your Hugging Face token | `hf_xxxxxxxxxxxxx` |
-| `HF_USERNAME` | Your Hugging Face username | `your-username` |
+| Secret Name | Value | Example | Required |
+|-------------|-------|---------|----------|
+| `HF_TOKEN` | Your Hugging Face token | `hf_xxxxxxxxxxxxx` | ✅ YES |
+| `HF_USERNAME` | Your Hugging Face username | `your-username` | ✅ YES |
+
+**⚠️ Important:** The workflow will fail with a clear error message if these secrets are not set. The error will look like:
+```
+❌ Error: HF_USERNAME secret is not set!
+fatal: repository 'https://huggingface.co/spaces//clinical-study-extraction/' not found
+```
+This happens because the URL becomes malformed with double slashes when `HF_USERNAME` is empty.
 
 **Optional secrets:**
 | Secret Name | Value | Purpose |
@@ -265,6 +272,45 @@ After each deployment, you'll see a summary:
 
 ## 🆘 Troubleshooting
 
+### Workflow Fails with "HF_USERNAME secret is not set"
+
+**Error Message:**
+```
+❌ Error: HF_USERNAME secret is not set!
+
+Please add the HF_USERNAME secret to your GitHub repository:
+1. Go to Settings → Secrets and variables → Actions
+2. Click 'New repository secret'
+3. Name: HF_USERNAME
+4. Value: Your Hugging Face username (e.g., 'your-username')
+```
+
+**Root Cause:**
+The `HF_USERNAME` GitHub secret is not configured or is empty.
+
+**Solution:**
+1. Go to your GitHub repository
+2. Navigate to **Settings** → **Secrets and variables** → **Actions**
+3. Click **New repository secret**
+4. Add:
+   - **Name:** `HF_USERNAME`
+   - **Value:** Your Hugging Face username (the one you use to log in)
+5. Save the secret
+6. Re-run the failed workflow
+
+### Workflow Fails with "repository not found" and double slashes in URL
+
+**Error Message:**
+```
+fatal: repository 'https://huggingface.co/spaces//clinical-study-extraction/' not found
+```
+
+**Root Cause:**
+Notice the double slashes (`//`) after `spaces/`? This indicates the `HF_USERNAME` secret is missing or empty.
+
+**Solution:**
+Follow the steps in the section above to add the `HF_USERNAME` secret.
+
 ### Workflow Fails at "Deploy to Hugging Face Space"
 
 **Error: "Authentication failed"**
@@ -373,11 +419,13 @@ jobs:
 
 ## ✅ Checklist
 
+⚠️ **Critical:** Both `HF_TOKEN` and `HF_USERNAME` secrets must be set before deployment!
+
 Setup:
 - [ ] Created Hugging Face Space
 - [ ] Generated HF token with write access
-- [ ] Added `HF_TOKEN` to GitHub Secrets
-- [ ] Added `HF_USERNAME` to GitHub Secrets
+- [ ] Added `HF_TOKEN` to GitHub Secrets ⚠️ REQUIRED
+- [ ] Added `HF_USERNAME` to GitHub Secrets ⚠️ REQUIRED
 - [ ] Workflow file exists in `.github/workflows/`
 
 Testing:
