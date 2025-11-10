@@ -54,6 +54,8 @@ fatal: repository 'https://huggingface.co/spaces//clinical-study-extraction/' no
 ```
 This happens because the URL becomes malformed with double slashes when `HF_USERNAME` is empty.
 
+**📚 For detailed step-by-step instructions, see [SECRETS_SETUP.md](SECRETS_SETUP.md)**
+
 **Optional secrets:**
 | Secret Name | Value | Purpose |
 |-------------|-------|---------|
@@ -447,6 +449,7 @@ Optional:
 
 - **GitHub Actions Docs**: https://docs.github.com/en/actions
 - **Hugging Face Spaces**: https://huggingface.co/docs/hub/spaces
+- **Secrets Setup Guide**: [SECRETS_SETUP.md](SECRETS_SETUP.md) - Quick guide for configuring GitHub secrets
 - **Workflow File**: `.github/workflows/deploy-huggingface.yml`
 - **Deployment Guide**: `DEPLOY_HUGGINGFACE.md`
 
