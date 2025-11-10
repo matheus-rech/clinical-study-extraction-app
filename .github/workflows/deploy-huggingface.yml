@@ -61,6 +61,42 @@ jobs:
           fetch-depth: 0
           lfs: true
 
+      - name: 🔍 Validate secrets
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+          HF_USERNAME: ${{ secrets.HF_USERNAME }}
+        run: |
+          if [ -z "$HF_USERNAME" ]; then
+            echo "❌ Error: HF_USERNAME secret is not set!"
+            echo ""
+            echo "Please add the HF_USERNAME secret to your GitHub repository:"
+            echo "1. Go to Settings → Secrets and variables → Actions"
+            echo "2. Click 'New repository secret'"
+            echo "3. Name: HF_USERNAME"
+            echo "4. Value: Your Hugging Face username (e.g., 'your-username')"
+            echo ""
+            echo "See GITHUB_ACTIONS_SETUP.md for detailed instructions."
+            exit 1
+          fi
+          
+          if [ -z "$HF_TOKEN" ]; then
+            echo "❌ Error: HF_TOKEN secret is not set!"
+            echo ""
+            echo "Please add the HF_TOKEN secret to your GitHub repository:"
+            echo "1. Go to https://huggingface.co/settings/tokens"
+            echo "2. Create a new token with 'Write' access"
+            echo "3. Go to GitHub Settings → Secrets and variables → Actions"
+            echo "4. Click 'New repository secret'"
+            echo "5. Name: HF_TOKEN"
+            echo "6. Value: Your Hugging Face token"
+            echo ""
+            echo "See GITHUB_ACTIONS_SETUP.md for detailed instructions."
+            exit 1
+          fi
+          
+          echo "✅ All required secrets are set"
+          echo "HF_USERNAME: $HF_USERNAME"
+
       - name: 🤗 Deploy to Hugging Face Space
         env:
           HF_TOKEN: ${{ secrets.HF_TOKEN }}
@@ -182,6 +218,42 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: 🔍 Validate secrets
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+          HF_USERNAME: ${{ secrets.HF_USERNAME }}
+        run: |
+          if [ -z "$HF_USERNAME" ]; then
+            echo "❌ Error: HF_USERNAME secret is not set!"
+            echo ""
+            echo "Please add the HF_USERNAME secret to your GitHub repository:"
+            echo "1. Go to Settings → Secrets and variables → Actions"
+            echo "2. Click 'New repository secret'"
+            echo "3. Name: HF_USERNAME"
+            echo "4. Value: Your Hugging Face username (e.g., 'your-username')"
+            echo ""
+            echo "See GITHUB_ACTIONS_SETUP.md for detailed instructions."
+            exit 1
+          fi
+          
+          if [ -z "$HF_TOKEN" ]; then
+            echo "❌ Error: HF_TOKEN secret is not set!"
+            echo ""
+            echo "Please add the HF_TOKEN secret to your GitHub repository:"
+            echo "1. Go to https://huggingface.co/settings/tokens"
+            echo "2. Create a new token with 'Write' access"
+            echo "3. Go to GitHub Settings → Secrets and variables → Actions"
+            echo "4. Click 'New repository secret'"
+            echo "5. Name: HF_TOKEN"
+            echo "6. Value: Your Hugging Face token"
+            echo ""
+            echo "See GITHUB_ACTIONS_SETUP.md for detailed instructions."
+            exit 1
+          fi
+          
+          echo "✅ All required secrets are set"
+          echo "HF_USERNAME: $HF_USERNAME"
+
       - name: 🤗 Deploy to Staging Space
         env:
           HF_TOKEN: ${{ secrets.HF_TOKEN }}
@@ -290,6 +362,42 @@ jobs:
     if: github.event_name == 'workflow_dispatch'
     
     steps:
+      - name: 🔍 Validate secrets
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+          HF_USERNAME: ${{ secrets.HF_USERNAME }}
+        run: |
+          if [ -z "$HF_USERNAME" ]; then
+            echo "❌ Error: HF_USERNAME secret is not set!"
+            echo ""
+            echo "Please add the HF_USERNAME secret to your GitHub repository:"
+            echo "1. Go to Settings → Secrets and variables → Actions"
+            echo "2. Click 'New repository secret'"
+            echo "3. Name: HF_USERNAME"
+            echo "4. Value: Your Hugging Face username (e.g., 'your-username')"
+            echo ""
+            echo "See GITHUB_ACTIONS_SETUP.md for detailed instructions."
+            exit 1
+          fi
+          
+          if [ -z "$HF_TOKEN" ]; then
+            echo "❌ Error: HF_TOKEN secret is not set!"
+            echo ""
+            echo "Please add the HF_TOKEN secret to your GitHub repository:"
+            echo "1. Go to https://huggingface.co/settings/tokens"
+            echo "2. Create a new token with 'Write' access"
+            echo "3. Go to GitHub Settings → Secrets and variables → Actions"
+            echo "4. Click 'New repository secret'"
+            echo "5. Name: HF_TOKEN"
+            echo "6. Value: Your Hugging Face token"
+            echo ""
+            echo "See GITHUB_ACTIONS_SETUP.md for detailed instructions."
+            exit 1
+          fi
+          
+          echo "✅ All required secrets are set"
+          echo "HF_USERNAME: $HF_USERNAME"
+
       - name: 🔄 Rollback to previous version
         env:
           HF_TOKEN: ${{ secrets.HF_TOKEN }}
