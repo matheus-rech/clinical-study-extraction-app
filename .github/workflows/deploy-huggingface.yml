@@ -75,7 +75,8 @@ jobs:
             echo "3. Name: HF_USERNAME"
             echo "4. Value: Your Hugging Face username (e.g., 'your-username')"
             echo ""
-            echo "See GITHUB_ACTIONS_SETUP.md for detailed instructions."
+            echo "📚 Quick Setup Guide: See SECRETS_SETUP.md"
+            echo "📖 Full Documentation: See GITHUB_ACTIONS_SETUP.md"
             exit 1
           fi
           
@@ -90,7 +91,8 @@ jobs:
             echo "5. Name: HF_TOKEN"
             echo "6. Value: Your Hugging Face token"
             echo ""
-            echo "See GITHUB_ACTIONS_SETUP.md for detailed instructions."
+            echo "📚 Quick Setup Guide: See SECRETS_SETUP.md"
+            echo "📖 Full Documentation: See GITHUB_ACTIONS_SETUP.md"
             exit 1
           fi
           
@@ -232,7 +234,8 @@ jobs:
             echo "3. Name: HF_USERNAME"
             echo "4. Value: Your Hugging Face username (e.g., 'your-username')"
             echo ""
-            echo "See GITHUB_ACTIONS_SETUP.md for detailed instructions."
+            echo "📚 Quick Setup Guide: See SECRETS_SETUP.md"
+            echo "📖 Full Documentation: See GITHUB_ACTIONS_SETUP.md"
             exit 1
           fi
           
@@ -247,7 +250,8 @@ jobs:
             echo "5. Name: HF_TOKEN"
             echo "6. Value: Your Hugging Face token"
             echo ""
-            echo "See GITHUB_ACTIONS_SETUP.md for detailed instructions."
+            echo "📚 Quick Setup Guide: See SECRETS_SETUP.md"
+            echo "📖 Full Documentation: See GITHUB_ACTIONS_SETUP.md"
             exit 1
           fi
           
@@ -376,7 +380,8 @@ jobs:
             echo "3. Name: HF_USERNAME"
             echo "4. Value: Your Hugging Face username (e.g., 'your-username')"
             echo ""
-            echo "See GITHUB_ACTIONS_SETUP.md for detailed instructions."
+            echo "📚 Quick Setup Guide: See SECRETS_SETUP.md"
+            echo "📖 Full Documentation: See GITHUB_ACTIONS_SETUP.md"
             exit 1
           fi
           
@@ -391,7 +396,8 @@ jobs:
             echo "5. Name: HF_TOKEN"
             echo "6. Value: Your Hugging Face token"
             echo ""
-            echo "See GITHUB_ACTIONS_SETUP.md for detailed instructions."
+            echo "📚 Quick Setup Guide: See SECRETS_SETUP.md"
+            echo "📖 Full Documentation: See GITHUB_ACTIONS_SETUP.md"
             exit 1
           fi
           

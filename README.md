@@ -198,6 +198,59 @@ npm test
 
 ## 📦 Deployment
 
+### Hugging Face Spaces (Recommended - FREE!)
+
+Deploy the complete application to Hugging Face Spaces with automatic GitHub Actions:
+
+#### 🚀 Quick Setup (5 minutes)
+
+1. **Create Hugging Face Account**
+   - Visit https://huggingface.co/join (free, no credit card required)
+
+2. **Create Hugging Face Space**
+   - Go to https://huggingface.co/new-space
+   - Name: `clinical-study-extraction`
+   - SDK: **Docker** (important!)
+   - Hardware: CPU basic (free)
+
+3. **Configure GitHub Secrets** ⚠️ **REQUIRED**
+   
+   Go to your GitHub repository → **Settings** → **Secrets and variables** → **Actions**
+   
+   Add these two required secrets:
+   
+   | Secret Name | Value | Where to Get It |
+   |-------------|-------|-----------------|
+   | `HF_USERNAME` | Your Hugging Face username | Your HF login username |
+   | `HF_TOKEN` | Hugging Face access token | https://huggingface.co/settings/tokens |
+   
+   **To create HF_TOKEN:**
+   - Go to https://huggingface.co/settings/tokens
+   - Click "New token"
+   - Name: `GitHub Actions Deploy`
+   - Role: **Write**
+   - Click "Generate" and copy the token
+   
+4. **Push to GitHub**
+   ```bash
+   git push origin main
+   ```
+   
+   GitHub Actions will automatically deploy to Hugging Face! 🎉
+
+#### Access Your Deployed App
+
+- **App URL**: `https://YOUR-USERNAME-clinical-study-extraction.hf.space`
+- **API Docs**: `https://YOUR-USERNAME-clinical-study-extraction.hf.space/docs`
+
+#### 📚 Detailed Documentation
+
+- **GitHub Actions Setup**: See [GITHUB_ACTIONS_SETUP.md](GITHUB_ACTIONS_SETUP.md)
+- **Hugging Face Deployment**: See [DEPLOY_HUGGINGFACE.md](DEPLOY_HUGGINGFACE.md)
+- **Secrets Configuration**: See [SECRETS_SETUP.md](SECRETS_SETUP.md)
+
+⚠️ **Important**: The workflow will fail if `HF_USERNAME` and `HF_TOKEN` secrets are not configured. You'll see a clear error message with setup instructions.
+
 ### Backend Deployment (Docker)
 
 ```bash
@@ -217,6 +270,7 @@ npm run serve
 ### Deploy to Production
 
 **Recommended platforms:**
+- **🤗 Hugging Face Spaces**: FREE, automatic deployment via GitHub Actions (see above)
 - **Backend**: Railway, Render, Heroku, AWS EC2
 - **Frontend**: Vercel, Netlify, AWS S3 + CloudFront
 
