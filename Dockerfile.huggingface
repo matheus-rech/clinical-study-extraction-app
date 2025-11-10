@@ -56,6 +56,7 @@ RUN pip install --no-cache-dir --upgrade pip && \
 # Copy application code
 COPY --chown=user backend/app $HOME/app/app
 COPY --chown=user backend/pdf_manipulation.py $HOME/app/
+COPY --chown=user frontend/public $HOME/app/frontend/public
 
 # Create necessary directories
 RUN mkdir -p $HOME/app/uploads $HOME/app/exports $HOME/app/cache

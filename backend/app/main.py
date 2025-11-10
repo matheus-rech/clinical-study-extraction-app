@@ -14,7 +14,8 @@ Requirements:
 
 from fastapi import FastAPI, File, UploadFile, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse, Response
+from fastapi.responses import JSONResponse, Response, FileResponse, HTMLResponse
+from fastapi.staticfiles import StaticFiles
 from typing import List, Optional
 import io
 import base64
@@ -24,6 +25,7 @@ import logging
 import os
 import sys
 import tempfile
+from pathlib import Path
 
 # Add parent directory to path for imports
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -103,6 +105,19 @@ app.include_router(vision_router)
 app.include_router(figure_router)
 app.include_router(unified_router)
 app.include_router(export_router)
+
+# Determine frontend path (different for Docker vs local)
+# In Docker (Hugging Face), frontend is at /home/user/app/frontend
+# Locally, it's relative to the backend directory
+FRONTEND_DIR = Path("/home/user/app/frontend/public") if os.path.exists("/home/user/app/frontend/public") else Path(__file__).parent.parent.parent / "frontend" / "public"
+
+# Mount static files if frontend directory exists
+if FRONTEND_DIR.exists():
+    logger.info(f"Mounting frontend from: {FRONTEND_DIR}")
+    # Mount static files (don't override API routes)
+    app.mount("/static", StaticFiles(directory=str(FRONTEND_DIR)), name="static")
+else:
+    logger.warning(f"Frontend directory not found at: {FRONTEND_DIR}")
 
 
 # ==================== TABLE EXTRACTION ====================
@@ -969,7 +984,51 @@ async def health_check():
 
 @app.get("/")
 async def root():
-    """Root endpoint with API documentation"""
+    """Serve the frontend HTML application or API info"""
+    # Try to serve the frontend HTML file
+    html_path = FRONTEND_DIR / "index.html" if FRONTEND_DIR.exists() else None
+    
+    if html_path and html_path.exists():
+        logger.info(f"Serving frontend from: {html_path}")
+        return FileResponse(str(html_path), media_type="text/html")
+    
+    # Fallback to API documentation if frontend not available
+    logger.warning("Frontend not available, serving API info")
+    return {
+        "service": "Clinical Study PDF Processing API",
+        "version": "2.0.0",
+        "features": {
+            "extraction": {
+                "/api/extract-tables": "Extract tables from PDF",
+                "/api/extract-figures": "Extract figures and images",
+                "/api/extract-images": "Extract embedded images",
+                "/api/extract-metadata": "Extract PDF metadata",
+            },
+            "processing": {
+                "/api/ocr-pdf": "Perform OCR on scanned PDF",
+                "/api/metadata-search": "Search for article metadata",
+                "/api/batch-extract": "Process multiple PDFs",
+                "/api/assess-quality": "Assess PDF quality",
+            },
+            "manipulation": {
+                "/api/merge-pdfs": "Merge multiple PDFs",
+                "/api/split-pdf": "Split PDF into sections",
+                "/api/rotate-pages": "Rotate PDF pages",
+                "/api/watermark-pdf": "Add watermark to PDF",
+                "/api/encrypt-pdf": "Password protect PDF",
+                "/api/decrypt-pdf": "Remove password from PDF",
+            }
+        },
+        "endpoints_count": 14,
+        "docs": "/docs (Swagger UI)",
+        "health": "/health"
+    }
+
+
+# Add an API info endpoint for programmatic access
+@app.get("/api")
+async def api_info():
+    """API information endpoint"""
     return {
         "service": "Clinical Study PDF Processing API",
         "version": "2.0.0",
