@@ -42,3 +42,21 @@
 
 - [x] Backend API tests for extraction endpoints
 - [x] Document upload/retrieval tests
+
+
+## New Features
+
+- [x] Natural language prompt field for schema generation
+- [x] AI agent to build optimal extraction schema from user description
+- [x] Three schema modes: Visual Editor, JSON Editor, Prompt-based Generation
+
+
+## Rigorous Clinical Extraction Schema Enhancement
+
+- [x] Add confidence levels (high/medium/low) to extracted fields
+- [x] Add detailed source location tracking (page, section, specific_location, exact_text_reference)
+- [x] Support PICO-T framework fields in default schema
+- [x] Add clinical study master extraction schema as preset
+- [x] Display confidence indicators in UI (color-coded badges)
+- [x] Show exact text reference in source view
+- [x] Export with full provenance data

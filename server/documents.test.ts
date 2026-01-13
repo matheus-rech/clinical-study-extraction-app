@@ -167,6 +167,23 @@ describe("documents router", () => {
   });
 });
 
+// Mock LLM for schema generation
+vi.mock("./_core/llm", () => ({
+  invokeLLM: vi.fn().mockResolvedValue({
+    choices: [{
+      message: {
+        content: JSON.stringify({
+          fields: [
+            { name: "study_id", label: "Study ID", type: "text", description: "Clinical trial registration number" },
+            { name: "sample_size", label: "Sample Size", type: "number", description: "Total number of participants" },
+          ],
+          reasoning: "These are the core fields for clinical trial extraction"
+        })
+      }
+    }]
+  })
+}));
+
 describe("extractions router", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -212,6 +229,28 @@ describe("extractions router", () => {
 
     expect(result.fields).toBeDefined();
     expect(result.fields.length).toBeGreaterThan(0);
-    expect(result.fields[0].name).toBe("study_id");
+    expect(result.fields[0].name).toBe("citation");
+  });
+});
+
+
+describe("schemas router", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("generates schema from natural language prompt", async () => {
+    const ctx = createAuthContext();
+    const caller = appRouter.createCaller(ctx);
+
+    const result = await caller.schemas.generateFromPrompt({
+      prompt: "I need to extract study ID and sample size from clinical trials",
+    });
+
+    expect(result.success).toBe(true);
+    expect(result.schema).toBeDefined();
+    expect(result.schema.fields).toHaveLength(2);
+    expect(result.schema.fields[0].name).toBe("study_id");
+    expect(result.reasoning).toBeDefined();
   });
 });

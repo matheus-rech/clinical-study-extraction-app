@@ -3,7 +3,7 @@ import { drizzle } from "drizzle-orm/mysql2";
 import { 
   InsertUser, users, 
   documents, InsertDocument, Document,
-  extractions, InsertExtraction, Extraction,
+  extractions, InsertExtraction, ExtractionRecord,
   ExtractedData, ExtractionSchema
 } from "../drizzle/schema";
 import { ENV } from './_core/env';
@@ -136,7 +136,7 @@ export async function deleteDocument(id: number, userId: number): Promise<boolea
 
 // ============ Extraction Queries ============
 
-export async function createExtraction(extraction: InsertExtraction): Promise<Extraction> {
+export async function createExtraction(extraction: InsertExtraction): Promise<ExtractionRecord> {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
 
@@ -147,7 +147,7 @@ export async function createExtraction(extraction: InsertExtraction): Promise<Ex
   return created;
 }
 
-export async function getExtractionsByDocument(documentId: number, userId: number): Promise<Extraction[]> {
+export async function getExtractionsByDocument(documentId: number, userId: number): Promise<ExtractionRecord[]> {
   const db = await getDb();
   if (!db) return [];
 
@@ -156,7 +156,7 @@ export async function getExtractionsByDocument(documentId: number, userId: numbe
     .orderBy(desc(extractions.createdAt));
 }
 
-export async function getExtractionById(id: number, userId: number): Promise<Extraction | undefined> {
+export async function getExtractionById(id: number, userId: number): Promise<ExtractionRecord | undefined> {
   const db = await getDb();
   if (!db) return undefined;
 
@@ -168,8 +168,8 @@ export async function getExtractionById(id: number, userId: number): Promise<Ext
 export async function updateExtraction(
   id: number, 
   userId: number, 
-  data: Partial<Pick<Extraction, 'extractedData' | 'summary' | 'status'>>
-): Promise<Extraction | undefined> {
+  data: Partial<Pick<ExtractionRecord, 'extractedData' | 'summary' | 'status'>>
+): Promise<ExtractionRecord | undefined> {
   const db = await getDb();
   if (!db) return undefined;
 

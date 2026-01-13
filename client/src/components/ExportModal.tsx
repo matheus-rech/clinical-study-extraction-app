@@ -2,7 +2,7 @@ import { Download, Copy, Check } from 'lucide-react';
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
-import type { ExtractedData, ExtractionSchema } from '../../../drizzle/schema';
+import type { ExtractedData, ExtractionSchema, Confidence, SourceLocation } from '../../../drizzle/schema';
 
 interface ExportModalProps {
   open: boolean;
@@ -13,31 +13,98 @@ interface ExportModalProps {
 }
 
 interface W3CAnnotation {
+  "@context": string;
   id: string;
-  value: string;
-  source_page: number | null;
-  source_quote?: string;
+  type: string;
+  body: {
+    type: string;
+    value: string | number | boolean;
+    confidence: Confidence;
+    notes?: string;
+  };
+  target: {
+    source: string;
+    selector?: {
+      type: string;
+      conformsTo?: string;
+      value: string;
+      page?: number;
+      section?: string;
+      specific_location?: string;
+      exact_text_reference?: string;
+    };
+  };
+}
+
+interface ExportFormat {
+  "@context": string;
+  type: string;
+  generator: string;
+  generated: string;
+  document: string;
+  annotations: W3CAnnotation[];
 }
 
 export function ExportModal({ open, onOpenChange, extractedData, schema, documentName }: ExportModalProps) {
   const [copied, setCopied] = useState(false);
 
-  const generateW3CExport = (): W3CAnnotation[] => {
-    if (!extractedData) return [];
+  const generateW3CExport = (): ExportFormat => {
+    const annotations: W3CAnnotation[] = [];
 
-    return schema.fields
-      .filter((field) => extractedData[field.name])
-      .map((field) => {
+    if (extractedData) {
+      schema.fields.forEach((field) => {
         const data = extractedData[field.name];
-        const quoteData = extractedData[`${field.name}_quote`];
-        
-        return {
-          id: field.name,
-          value: data?.value || '',
-          source_page: data?.location?.page || null,
-          ...(quoteData?.value && { source_quote: quoteData.value }),
+        if (!data) return;
+
+        const annotation: W3CAnnotation = {
+          "@context": "http://www.w3.org/ns/anno.jsonld",
+          id: `#${field.name}`,
+          type: "Annotation",
+          body: {
+            type: "TextualBody",
+            value: data.value,
+            confidence: data.confidence || 'low',
+            ...(data.notes && { notes: data.notes }),
+          },
+          target: {
+            source: documentName || 'document.pdf',
+          },
         };
+
+        // Add source location selector if available
+        if (data.source_location) {
+          annotation.target.selector = {
+            type: "FragmentSelector",
+            conformsTo: "http://tools.ietf.org/rfc/rfc3778",
+            value: `page=${data.source_location.page}`,
+            page: data.source_location.page,
+            ...(data.source_location.section && { section: data.source_location.section }),
+            ...(data.source_location.specific_location && { specific_location: data.source_location.specific_location }),
+            ...(data.source_location.exact_text_reference && { exact_text_reference: data.source_location.exact_text_reference }),
+          };
+        } else if (data.location) {
+          // Legacy location format
+          annotation.target.selector = {
+            type: data.location.selector.type,
+            conformsTo: data.location.selector.conformsTo,
+            value: data.location.selector.value,
+            page: data.location.page,
+            exact_text_reference: data.location.exact,
+          };
+        }
+
+        annotations.push(annotation);
       });
+    }
+
+    return {
+      "@context": "http://www.w3.org/ns/anno.jsonld",
+      type: "AnnotationCollection",
+      generator: "PDF Data Extractor",
+      generated: new Date().toISOString(),
+      document: documentName || 'document.pdf',
+      annotations,
+    };
   };
 
   const exportData = generateW3CExport();
@@ -65,7 +132,7 @@ export function ExportModal({ open, onOpenChange, extractedData, schema, documen
         <DialogHeader>
           <DialogTitle>Export Annotations</DialogTitle>
           <DialogDescription>
-            W3C-style JSON annotations with field values and source page references
+            W3C Web Annotation format with full provenance tracking (confidence levels, source locations, exact text references)
           </DialogDescription>
         </DialogHeader>
 

@@ -9,7 +9,7 @@ import { ExtractionSidebar } from '@/components/ExtractionSidebar';
 import { SchemaEditor } from '@/components/SchemaEditor';
 import { ExportModal } from '@/components/ExportModal';
 import { SummaryModal } from '@/components/SummaryModal';
-import { DEFAULT_EXTRACTION_SCHEMA, type ExtractionSchema, type ExtractedData, type LocationData } from '../../../drizzle/schema';
+import { DEFAULT_EXTRACTION_SCHEMA, type ExtractionSchema, type ExtractedData, type ExtractedFieldData, type LocationData } from '../../../drizzle/schema';
 
 declare global {
   interface Window {
@@ -110,7 +110,7 @@ export default function Extract() {
 
       if (result.extractedData) {
         // Ground the extracted data by finding locations in PDF
-        const groundedData = await groundExtractedData(result.extractedData);
+        const groundedData = await groundExtractedData(result.extractedData as ExtractedData);
         setExtractedData(groundedData);
 
         // Save grounded data
@@ -140,42 +140,38 @@ export default function Extract() {
     const pdf = await loadingTask.promise;
 
     for (const [key, fieldData] of Object.entries(data)) {
-      // Skip quote fields
-      if (key.endsWith('_quote')) continue;
-
-      const quoteKey = `${key}_quote`;
-      const quote = data[quoteKey]?.value;
-      const value = fieldData.value;
-
-      // Try to find location using quote first, then value
+      // Get the text to search for - use exact_text_reference from source_location if available
+      const searchText = fieldData.source_location?.exact_text_reference || String(fieldData.value);
+      
+      // Try to find location in PDF
       let location = null;
-      if (quote) {
-        location = await locateTextInPdf(pdf, quote);
-      }
-      if (!location && value) {
-        location = await locateTextInPdf(pdf, value);
+      if (searchText) {
+        location = await locateTextInPdf(pdf, searchText);
       }
 
-      groundedData[key] = {
-        value,
-        location: location
-          ? {
-              page: location.page,
-              exact: quote || value,
-              rects: [location.rect],
-              selector: {
-                type: 'FragmentSelector',
-                conformsTo: 'http://tools.ietf.org/rfc/rfc3778',
-                value: `page=${location.page}&rect=${location.rect.join(',')}`,
-              },
-            }
-          : undefined,
+      // Build the grounded field data
+      const groundedField: ExtractedFieldData = {
+        value: fieldData.value,
+        confidence: fieldData.confidence,
+        source_location: fieldData.source_location,
+        notes: fieldData.notes,
       };
 
-      // Keep quote for export
-      if (quote) {
-        groundedData[quoteKey] = { value: quote };
+      // Add PDF location data if found
+      if (location) {
+        groundedField.location = {
+          page: location.page,
+          exact: searchText,
+          rects: [location.rect],
+          selector: {
+            type: 'FragmentSelector',
+            conformsTo: 'http://tools.ietf.org/rfc/rfc3778',
+            value: `page=${location.page}&rect=${location.rect.join(',')}`,
+          },
+        };
       }
+
+      groundedData[key] = groundedField;
     }
 
     return groundedData;
@@ -319,6 +315,7 @@ export default function Extract() {
         onOpenChange={setShowSchemaEditor}
         schema={schema}
         onSave={handleSaveSchema}
+        documentContext={documentText}
       />
 
       <ExportModal

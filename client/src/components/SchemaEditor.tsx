@@ -1,25 +1,37 @@
 import { useState } from 'react';
-import { Plus, Trash2, GripVertical } from 'lucide-react';
+import { Plus, Trash2, GripVertical, Sparkles, Loader2, Wand2, Code, List } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog';
 import { Textarea } from '@/components/ui/textarea';
+import { trpc } from '@/lib/trpc';
+import { toast } from 'sonner';
 import type { ExtractionSchema, ExtractionField } from '../../../drizzle/schema';
+
+type EditorMode = 'visual' | 'json' | 'prompt';
 
 interface SchemaEditorProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   schema: ExtractionSchema;
   onSave: (schema: ExtractionSchema) => void;
+  documentContext?: string; // Optional document text for better AI schema generation
 }
 
-export function SchemaEditor({ open, onOpenChange, schema, onSave }: SchemaEditorProps) {
+export function SchemaEditor({ open, onOpenChange, schema, onSave, documentContext }: SchemaEditorProps) {
   const [fields, setFields] = useState<ExtractionField[]>(schema.fields);
-  const [jsonMode, setJsonMode] = useState(false);
+  const [mode, setMode] = useState<EditorMode>('prompt');
   const [jsonValue, setJsonValue] = useState('');
   const [jsonError, setJsonError] = useState<string | null>(null);
+  
+  // AI Prompt state
+  const [prompt, setPrompt] = useState('');
+  const [aiReasoning, setAiReasoning] = useState<string | null>(null);
+  const [generatedSchema, setGeneratedSchema] = useState<ExtractionSchema | null>(null);
+
+  const generateSchemaMutation = trpc.schemas.generateFromPrompt.useMutation();
 
   const handleAddField = () => {
     setFields([
@@ -44,7 +56,7 @@ export function SchemaEditor({ open, onOpenChange, schema, onSave }: SchemaEdito
   };
 
   const handleSave = () => {
-    if (jsonMode) {
+    if (mode === 'json') {
       try {
         const parsed = JSON.parse(jsonValue);
         if (!parsed.fields || !Array.isArray(parsed.fields)) {
@@ -56,33 +68,73 @@ export function SchemaEditor({ open, onOpenChange, schema, onSave }: SchemaEdito
         setJsonError('Invalid JSON format');
         return;
       }
+    } else if (mode === 'prompt' && generatedSchema) {
+      onSave(generatedSchema);
     } else {
       onSave({ fields });
     }
     onOpenChange(false);
   };
 
-  const handleSwitchToJson = () => {
-    setJsonValue(JSON.stringify({ fields }, null, 2));
-    setJsonError(null);
-    setJsonMode(true);
+  const handleSwitchMode = (newMode: EditorMode) => {
+    // Save current state before switching
+    if (mode === 'json') {
+      try {
+        const parsed = JSON.parse(jsonValue);
+        if (parsed.fields && Array.isArray(parsed.fields)) {
+          setFields(parsed.fields);
+        }
+      } catch (e) {
+        // Keep existing fields if JSON is invalid
+      }
+    } else if (mode === 'prompt' && generatedSchema) {
+      setFields(generatedSchema.fields);
+    }
+
+    // Prepare new mode state
+    if (newMode === 'json') {
+      setJsonValue(JSON.stringify({ fields }, null, 2));
+      setJsonError(null);
+    }
+
+    setMode(newMode);
   };
 
-  const handleSwitchToVisual = () => {
-    try {
-      const parsed = JSON.parse(jsonValue);
-      if (parsed.fields && Array.isArray(parsed.fields)) {
-        setFields(parsed.fields);
-      }
-    } catch (e) {
-      // Keep existing fields if JSON is invalid
+  const handleGenerateSchema = async () => {
+    if (!prompt.trim()) {
+      toast.error('Please describe what you want to extract');
+      return;
     }
-    setJsonMode(false);
+
+    try {
+      const result = await generateSchemaMutation.mutateAsync({
+        prompt: prompt.trim(),
+        documentContext: documentContext?.substring(0, 5000),
+      });
+
+      if (result.success && result.schema) {
+        setGeneratedSchema(result.schema);
+        setAiReasoning(result.reasoning || null);
+        toast.success('Schema generated successfully!');
+      }
+    } catch (error) {
+      toast.error('Failed to generate schema. Please try again.');
+      console.error('Schema generation error:', error);
+    }
+  };
+
+  const handleUseGeneratedSchema = () => {
+    if (generatedSchema) {
+      setFields(generatedSchema.fields);
+      setMode('visual');
+      setGeneratedSchema(null);
+      setAiReasoning(null);
+    }
   };
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl max-h-[80vh] overflow-hidden flex flex-col">
+      <DialogContent className="max-w-2xl max-h-[85vh] overflow-hidden flex flex-col">
         <DialogHeader>
           <DialogTitle>Configure Extraction Schema</DialogTitle>
           <DialogDescription>
@@ -90,25 +142,139 @@ export function SchemaEditor({ open, onOpenChange, schema, onSave }: SchemaEdito
           </DialogDescription>
         </DialogHeader>
 
-        <div className="flex gap-2 mb-4">
+        {/* Mode Tabs */}
+        <div className="flex gap-1 p-1 bg-slate-100 rounded-lg">
           <Button
-            variant={jsonMode ? 'outline' : 'default'}
+            variant={mode === 'prompt' ? 'default' : 'ghost'}
             size="sm"
-            onClick={() => !jsonMode || handleSwitchToVisual()}
+            className="flex-1"
+            onClick={() => handleSwitchMode('prompt')}
           >
+            <Wand2 className="h-4 w-4 mr-2" />
+            AI Generate
+          </Button>
+          <Button
+            variant={mode === 'visual' ? 'default' : 'ghost'}
+            size="sm"
+            className="flex-1"
+            onClick={() => handleSwitchMode('visual')}
+          >
+            <List className="h-4 w-4 mr-2" />
             Visual Editor
           </Button>
           <Button
-            variant={jsonMode ? 'default' : 'outline'}
+            variant={mode === 'json' ? 'default' : 'ghost'}
             size="sm"
-            onClick={() => jsonMode || handleSwitchToJson()}
+            className="flex-1"
+            onClick={() => handleSwitchMode('json')}
           >
+            <Code className="h-4 w-4 mr-2" />
             JSON Editor
           </Button>
         </div>
 
-        <div className="flex-1 overflow-y-auto">
-          {jsonMode ? (
+        <div className="flex-1 overflow-y-auto mt-4">
+          {/* AI Prompt Mode */}
+          {mode === 'prompt' && (
+            <div className="space-y-4">
+              <div className="bg-gradient-to-r from-purple-50 to-blue-50 border border-purple-200 rounded-lg p-4">
+                <div className="flex items-start gap-3">
+                  <div className="bg-purple-100 p-2 rounded-lg">
+                    <Sparkles className="h-5 w-5 text-purple-600" />
+                  </div>
+                  <div className="flex-1">
+                    <h3 className="font-medium text-slate-900 mb-1">
+                      Describe what you want to extract
+                    </h3>
+                    <p className="text-sm text-slate-600 mb-3">
+                      Tell the AI agent what data you need. It will design the optimal extraction schema for your documents.
+                    </p>
+                    <Textarea
+                      value={prompt}
+                      onChange={(e) => setPrompt(e.target.value)}
+                      placeholder="Example: I need to extract clinical trial information including the study registration number, total number of participants, primary and secondary outcomes, intervention details, and any adverse events reported..."
+                      className="min-h-[120px] bg-white"
+                    />
+                    <Button
+                      className="mt-3 bg-purple-600 hover:bg-purple-700"
+                      onClick={handleGenerateSchema}
+                      disabled={generateSchemaMutation.isPending || !prompt.trim()}
+                    >
+                      {generateSchemaMutation.isPending ? (
+                        <>
+                          <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                          Generating Schema...
+                        </>
+                      ) : (
+                        <>
+                          <Sparkles className="h-4 w-4 mr-2" />
+                          Generate Schema
+                        </>
+                      )}
+                    </Button>
+                  </div>
+                </div>
+              </div>
+
+              {/* Generated Schema Preview */}
+              {generatedSchema && (
+                <div className="border rounded-lg p-4 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <h4 className="font-medium text-slate-900">Generated Schema</h4>
+                    <Button size="sm" onClick={handleUseGeneratedSchema}>
+                      Edit in Visual Editor
+                    </Button>
+                  </div>
+
+                  {aiReasoning && (
+                    <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 text-sm text-blue-800">
+                      <strong>AI Reasoning:</strong> {aiReasoning}
+                    </div>
+                  )}
+
+                  <div className="space-y-2">
+                    {generatedSchema.fields.map((field, index) => (
+                      <div
+                        key={index}
+                        className="flex items-center gap-3 p-2 bg-slate-50 rounded border"
+                      >
+                        <div className="flex-1">
+                          <span className="font-medium text-sm">{field.label}</span>
+                          <span className="text-xs text-slate-500 ml-2">({field.type})</span>
+                          {field.description && (
+                            <p className="text-xs text-slate-500 mt-0.5">{field.description}</p>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Quick Examples */}
+              <div className="border-t pt-4">
+                <p className="text-xs text-slate-500 mb-2">Quick examples:</p>
+                <div className="flex flex-wrap gap-2">
+                  {[
+                    'Extract study ID, sample size, and primary outcomes from clinical trials',
+                    'Get author names, publication year, methodology, and key findings',
+                    'Extract drug names, dosages, adverse events, and efficacy measures',
+                  ].map((example, i) => (
+                    <button
+                      key={i}
+                      onClick={() => setPrompt(example)}
+                      className="text-xs px-2 py-1 bg-slate-100 hover:bg-slate-200 rounded text-slate-600 transition-colors"
+                    >
+                      {example.substring(0, 50)}...
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* JSON Mode */}
+          {mode === 'json' && (
             <div className="space-y-2">
               <Textarea
                 value={jsonValue}
@@ -123,7 +289,10 @@ export function SchemaEditor({ open, onOpenChange, schema, onSave }: SchemaEdito
                 <p className="text-sm text-red-500">{jsonError}</p>
               )}
             </div>
-          ) : (
+          )}
+
+          {/* Visual Mode */}
+          {mode === 'visual' && (
             <div className="space-y-3">
               {fields.map((field, index) => (
                 <div
@@ -215,7 +384,12 @@ export function SchemaEditor({ open, onOpenChange, schema, onSave }: SchemaEdito
           <Button variant="outline" onClick={() => onOpenChange(false)}>
             Cancel
           </Button>
-          <Button onClick={handleSave}>Save Schema</Button>
+          <Button 
+            onClick={handleSave}
+            disabled={mode === 'prompt' && !generatedSchema && fields.length === 0}
+          >
+            {mode === 'prompt' && generatedSchema ? 'Use Generated Schema' : 'Save Schema'}
+          </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

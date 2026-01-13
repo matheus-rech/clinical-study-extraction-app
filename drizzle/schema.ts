@@ -55,23 +55,282 @@ export const extractions = mysqlTable("extractions", {
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 });
 
-export type Extraction = typeof extractions.$inferSelect;
+export type ExtractionRecord = typeof extractions.$inferSelect;
 export type InsertExtraction = typeof extractions.$inferInsert;
 
+// ============================================================================
+// RIGOROUS CLINICAL EXTRACTION SCHEMA TYPES
+// Based on clinical-study-master-extraction.schema.json
+// ============================================================================
+
 /**
- * Type definitions for extraction schema and data
+ * Confidence level for extracted data - indicates reliability of extraction
+ */
+export type Confidence = "high" | "medium" | "low";
+
+/**
+ * Source location with full provenance tracking
+ * Every extracted field MUST have source location for verification
+ */
+export interface SourceLocation {
+  /** Page number in the document (1-indexed, required) */
+  page: number;
+  /** Section heading where data was found */
+  section?: string;
+  /** Specific location within section (e.g., "Table 2, Row 3", "Figure 1 caption") */
+  specific_location?: string;
+  /** Exact verbatim text from the document that contains this data */
+  exact_text_reference?: string;
+}
+
+/**
+ * Base extracted field type - every extracted field follows this structure
+ */
+export interface ExtractedField<T = string> {
+  /** The extracted content/value */
+  content: T;
+  /** Source location in the document */
+  source_location: SourceLocation;
+  /** Confidence level of the extraction */
+  confidence: Confidence;
+  /** Additional notes about the extraction (ambiguities, assumptions, etc.) */
+  notes?: string;
+}
+
+/**
+ * Extracted field types with proper typing
+ */
+export type ExtractedFieldString = ExtractedField<string>;
+export type ExtractedFieldStringRequired = ExtractedField<string> & { content: string };
+export type ExtractedFieldInteger = ExtractedField<number>;
+export type ExtractedFieldNumber = ExtractedField<number>;
+export type ExtractedFieldBoolean = ExtractedField<boolean>;
+export type ExtractedFieldTriState = ExtractedField<boolean | null>;
+
+/**
+ * Generic extracted item for arrays (interventions, complications, etc.)
+ */
+export interface ExtractedItem {
+  data_type: string;
+  content: unknown;
+  source_location: SourceLocation;
+  confidence: Confidence;
+  notes?: string;
+}
+
+// ============================================================================
+// CLINICAL STUDY MASTER EXTRACTION SCHEMA
+// ============================================================================
+
+/**
+ * Step 1: Study Identification
+ */
+export interface StudyId {
+  citation: ExtractedFieldStringRequired;
+  doi?: ExtractedFieldString;
+  pmid?: ExtractedFieldString;
+  journal?: ExtractedFieldString;
+  year?: ExtractedFieldInteger;
+  country?: ExtractedFieldString;
+  centers?: ExtractedFieldString;
+  funding?: ExtractedFieldString;
+  conflicts?: ExtractedFieldString;
+  registration?: ExtractedFieldString;
+}
+
+/**
+ * Step 2: PICO-T Framework
+ */
+export interface PicoT {
+  population?: ExtractedFieldString;
+  intervention?: ExtractedFieldString;
+  comparator?: ExtractedFieldString;
+  outcomesMeasured?: ExtractedFieldString;
+  timingFollowUp?: ExtractedFieldString;
+  studyType?: ExtractedFieldString;
+  inclusionMet: ExtractedFieldBoolean;
+}
+
+/**
+ * Step 3: Baseline Demographics
+ */
+export interface Baseline {
+  sampleSize: {
+    totalN: ExtractedFieldInteger;
+    surgicalN?: ExtractedFieldInteger;
+    controlN?: ExtractedFieldInteger;
+  };
+  age?: {
+    mean?: ExtractedFieldNumber;
+    sd?: ExtractedFieldNumber;
+    median?: ExtractedFieldNumber;
+    iqr?: {
+      lowerQ1?: ExtractedFieldNumber;
+      upperQ3?: ExtractedFieldNumber;
+    };
+  };
+  gender?: {
+    maleN?: ExtractedFieldInteger;
+    femaleN?: ExtractedFieldInteger;
+  };
+  clinicalScores?: {
+    prestrokeMRS?: ExtractedFieldNumber;
+    nihssMeanOrMedian?: ExtractedFieldNumber;
+    gcsMeanOrMedian?: ExtractedFieldNumber;
+  };
+}
+
+/**
+ * Step 4: Imaging
+ */
+export interface Imaging {
+  vascularTerritory?: ExtractedFieldString;
+  infarctVolume?: ExtractedFieldNumber;
+  strokeVolumeCerebellum?: ExtractedFieldString;
+  edema?: {
+    description?: ExtractedFieldString;
+    peakSwellingWindow?: ExtractedFieldString;
+  };
+  involvementAreas?: {
+    brainstemInvolvement?: ExtractedFieldTriState;
+    supratentorialInvolvement?: ExtractedFieldTriState;
+    nonCerebellarStroke?: ExtractedFieldTriState;
+  };
+}
+
+/**
+ * Step 5: Interventions
+ */
+export interface Interventions {
+  surgicalIndications?: ExtractedItem[];
+  interventionTypes?: ExtractedItem[];
+}
+
+/**
+ * Step 6: Study Arms
+ */
+export interface StudyArm {
+  armId?: ExtractedFieldString;
+  label?: ExtractedFieldString;
+  description?: ExtractedFieldString;
+}
+
+/**
+ * Step 7: Outcomes
+ */
+export interface MortalityOutcome {
+  armId?: ExtractedFieldString;
+  timepoint?: ExtractedFieldString;
+  deathsN?: ExtractedFieldInteger;
+  totalN?: ExtractedFieldInteger;
+  notes?: ExtractedFieldString;
+}
+
+export interface MRSOutcome {
+  armId?: ExtractedFieldString;
+  timepoint?: ExtractedFieldString;
+  definition?: ExtractedFieldString;
+  eventsN?: ExtractedFieldInteger;
+  totalN?: ExtractedFieldInteger;
+  notes?: ExtractedFieldString;
+}
+
+export interface Outcomes {
+  mortality?: MortalityOutcome[];
+  mrs?: MRSOutcome[];
+}
+
+/**
+ * Step 8: Complications
+ */
+export interface ComplicationItem {
+  armId?: ExtractedFieldString;
+  complication?: ExtractedFieldString;
+  eventsN?: ExtractedFieldInteger;
+  totalN?: ExtractedFieldInteger;
+  timepoint?: ExtractedFieldString;
+  notes?: ExtractedFieldString;
+}
+
+export interface PredictorAnalysis {
+  predictor?: ExtractedFieldString;
+  effectMeasure?: ExtractedFieldString;
+  estimate?: ExtractedFieldNumber;
+  ciLower?: ExtractedFieldNumber;
+  ciUpper?: ExtractedFieldNumber;
+  pValue?: ExtractedFieldNumber;
+  adjusted?: ExtractedFieldBoolean;
+  modelNotes?: ExtractedFieldString;
+}
+
+export interface Complications {
+  items?: ComplicationItem[];
+  predictorsSummary?: ExtractedFieldString;
+  predictorAnalyses?: PredictorAnalysis[];
+}
+
+/**
+ * Extraction Log - generic extracted data with summary
+ */
+export interface ExtractionLog {
+  extracted_data?: ExtractedItem[];
+  summary?: {
+    document_type?: string;
+    total_extractions?: number;
+    demographics?: Record<string, unknown>;
+    clinical_aspects?: Record<string, unknown>;
+    interventional_aspects?: Record<string, unknown>;
+    picos?: {
+      population?: string;
+      intervention?: string;
+      comparison?: string;
+      outcomes?: string;
+    };
+  };
+}
+
+/**
+ * Complete Clinical Study Master Extraction
+ */
+export interface ClinicalStudyExtraction {
+  meta?: {
+    schemaVersion?: string;
+  };
+  studyId: StudyId;
+  picoT: PicoT;
+  baseline: Baseline;
+  imaging?: Imaging;
+  interventions?: Interventions;
+  studyArms?: StudyArm[];
+  outcomes?: Outcomes;
+  complications?: Complications;
+  extractionLog?: ExtractionLog;
+}
+
+// ============================================================================
+// FLEXIBLE EXTRACTION SCHEMA (for custom user-defined schemas)
+// ============================================================================
+
+/**
+ * Field definition for custom extraction schemas
  */
 export interface ExtractionField {
   name: string;
   label: string;
-  type: "text" | "textarea" | "number";
+  type: "text" | "textarea" | "number" | "boolean" | "integer";
   description?: string;
+  required?: boolean;
 }
 
 export interface ExtractionSchema {
   fields: ExtractionField[];
+  /** Optional: use clinical study master schema */
+  useClinicalMasterSchema?: boolean;
 }
 
+/**
+ * Legacy location data (for backward compatibility)
+ */
 export interface LocationData {
   page: number;
   exact: string;
@@ -83,21 +342,83 @@ export interface LocationData {
   };
 }
 
+/**
+ * Extracted field data with full provenance
+ */
 export interface ExtractedFieldData {
-  value: string;
+  /** The extracted value */
+  value: string | number | boolean;
+  /** Confidence level */
+  confidence?: Confidence;
+  /** Source location in PDF */
+  source_location?: SourceLocation;
+  /** Legacy location data for PDF highlighting */
   location?: LocationData;
+  /** Additional notes */
+  notes?: string;
 }
 
 export interface ExtractedData {
   [fieldName: string]: ExtractedFieldData;
 }
 
-/** Default clinical trial extraction schema */
+// ============================================================================
+// DEFAULT SCHEMAS
+// ============================================================================
+
+/** Default clinical trial extraction schema with PICO-T focus */
 export const DEFAULT_EXTRACTION_SCHEMA: ExtractionSchema = {
   fields: [
-    { name: "study_id", label: "Study ID / DOI", type: "text", description: "DOI or Protocol ID" },
-    { name: "trial_id", label: "Trial ID", type: "text", description: "NCT Number" },
-    { name: "sample_size", label: "Sample Size", type: "text", description: "Number of participants randomized" },
-    { name: "outcome", label: "Primary Outcome", type: "textarea", description: "Primary outcome measure" },
+    { name: "citation", label: "Citation", type: "text", description: "Full citation (Author et al., Year)", required: true },
+    { name: "doi", label: "DOI", type: "text", description: "Digital Object Identifier" },
+    { name: "pmid", label: "PMID", type: "text", description: "PubMed ID" },
+    { name: "registration", label: "Trial Registration", type: "text", description: "Clinical trial registration number (e.g., NCT number)" },
+    { name: "study_type", label: "Study Type", type: "text", description: "RCT, cohort, case-control, etc." },
+    { name: "population", label: "Population (P)", type: "textarea", description: "Who was studied? Include inclusion/exclusion criteria" },
+    { name: "intervention", label: "Intervention (I)", type: "textarea", description: "What intervention was applied?" },
+    { name: "comparator", label: "Comparator (C)", type: "textarea", description: "What was the comparison/control group?" },
+    { name: "outcomes", label: "Outcomes (O)", type: "textarea", description: "Primary and secondary outcomes measured" },
+    { name: "timing", label: "Timing/Follow-up (T)", type: "text", description: "Duration of follow-up" },
+    { name: "total_n", label: "Total Sample Size", type: "integer", description: "Total number of participants", required: true },
+    { name: "age_mean", label: "Mean Age", type: "number", description: "Mean age of participants" },
+    { name: "male_n", label: "Male Participants", type: "integer", description: "Number of male participants" },
+    { name: "female_n", label: "Female Participants", type: "integer", description: "Number of female participants" },
+  ],
+};
+
+/** Clinical Study Master Schema - comprehensive extraction */
+export const CLINICAL_MASTER_SCHEMA: ExtractionSchema = {
+  useClinicalMasterSchema: true,
+  fields: [
+    // Step 1: Study ID
+    { name: "citation", label: "Citation", type: "text", description: "Full citation (Author et al., Year)", required: true },
+    { name: "doi", label: "DOI", type: "text", description: "Digital Object Identifier" },
+    { name: "pmid", label: "PMID", type: "text", description: "PubMed ID" },
+    { name: "journal", label: "Journal", type: "text", description: "Journal name" },
+    { name: "year", label: "Publication Year", type: "integer", description: "Year of publication" },
+    { name: "country", label: "Country", type: "text", description: "Country where study was conducted" },
+    { name: "centers", label: "Centers", type: "text", description: "Single-center or multi-center" },
+    { name: "funding", label: "Funding", type: "text", description: "Funding sources" },
+    { name: "conflicts", label: "Conflicts of Interest", type: "text", description: "Declared conflicts of interest" },
+    { name: "registration", label: "Trial Registration", type: "text", description: "Clinical trial registration number" },
+    // Step 2: PICO-T
+    { name: "population", label: "Population (P)", type: "textarea", description: "Who was studied?" },
+    { name: "intervention", label: "Intervention (I)", type: "textarea", description: "What intervention was applied?" },
+    { name: "comparator", label: "Comparator (C)", type: "textarea", description: "What was the comparison?" },
+    { name: "outcomes_measured", label: "Outcomes Measured (O)", type: "textarea", description: "What outcomes were measured?" },
+    { name: "timing_followup", label: "Timing/Follow-up (T)", type: "text", description: "Duration of follow-up" },
+    { name: "study_type", label: "Study Type", type: "text", description: "RCT, cohort, case-control, etc." },
+    { name: "inclusion_met", label: "Inclusion Criteria Met", type: "boolean", description: "Does study meet inclusion criteria?" },
+    // Step 3: Baseline
+    { name: "total_n", label: "Total N", type: "integer", description: "Total sample size", required: true },
+    { name: "surgical_n", label: "Surgical Group N", type: "integer", description: "Sample size in surgical/intervention group" },
+    { name: "control_n", label: "Control Group N", type: "integer", description: "Sample size in control group" },
+    { name: "age_mean", label: "Age (Mean)", type: "number", description: "Mean age" },
+    { name: "age_sd", label: "Age (SD)", type: "number", description: "Standard deviation of age" },
+    { name: "age_median", label: "Age (Median)", type: "number", description: "Median age" },
+    { name: "male_n", label: "Male N", type: "integer", description: "Number of males" },
+    { name: "female_n", label: "Female N", type: "integer", description: "Number of females" },
+    { name: "nihss", label: "NIHSS (Mean/Median)", type: "number", description: "NIH Stroke Scale score" },
+    { name: "gcs", label: "GCS (Mean/Median)", type: "number", description: "Glasgow Coma Scale score" },
   ],
 };

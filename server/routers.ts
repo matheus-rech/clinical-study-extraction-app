@@ -17,12 +17,43 @@ import { nanoid } from "nanoid";
 const extractionFieldSchema = z.object({
   name: z.string(),
   label: z.string(),
-  type: z.enum(["text", "textarea", "number"]),
+  type: z.enum(["text", "textarea", "number", "integer", "boolean"]),
   description: z.string().optional(),
+  required: z.boolean().optional(),
 });
 
 const extractionSchemaValidator = z.object({
   fields: z.array(extractionFieldSchema),
+  useClinicalMasterSchema: z.boolean().optional(),
+});
+
+// Source location validator
+const sourceLocationValidator = z.object({
+  page: z.number(),
+  section: z.string().optional(),
+  specific_location: z.string().optional(),
+  exact_text_reference: z.string().optional(),
+});
+
+// Legacy location validator (for PDF highlighting)
+const locationValidator = z.object({
+  page: z.number(),
+  exact: z.string(),
+  rects: z.array(z.array(z.number())),
+  selector: z.object({
+    type: z.string(),
+    conformsTo: z.string().optional(),
+    value: z.string(),
+  }),
+});
+
+// Extracted field data validator with confidence and source tracking
+const extractedFieldDataValidator = z.object({
+  value: z.union([z.string(), z.number(), z.boolean()]),
+  confidence: z.enum(["high", "medium", "low"]).optional(),
+  source_location: sourceLocationValidator.optional(),
+  location: locationValidator.optional(),
+  notes: z.string().optional(),
 });
 
 export const appRouter = router({
@@ -124,19 +155,7 @@ export const appRouter = router({
     update: protectedProcedure
       .input(z.object({
         id: z.number(),
-        extractedData: z.record(z.string(), z.object({
-          value: z.string(),
-          location: z.object({
-            page: z.number(),
-            exact: z.string(),
-            rects: z.array(z.array(z.number())),
-            selector: z.object({
-              type: z.string(),
-              conformsTo: z.string().optional(),
-              value: z.string(),
-            }),
-          }).optional(),
-        })).optional(),
+        extractedData: z.record(z.string(), extractedFieldDataValidator).optional(),
         summary: z.string().optional(),
         status: z.enum(["pending", "extracting", "completed", "failed"]).optional(),
       }))
@@ -176,16 +195,38 @@ export const appRouter = router({
             `"${f.name}" (${f.description || f.label})`
           ).join("\n");
 
-          // Build JSON schema for structured output
+          // Build JSON schema for structured output with confidence and source tracking
           const properties: Record<string, any> = {};
           schema.fields.forEach(field => {
+            const valueType = field.type === 'number' || field.type === 'integer' 
+              ? { type: ["number", "string"], description: `The extracted value for ${field.label}` }
+              : field.type === 'boolean'
+              ? { type: ["boolean", "string"], description: `The extracted value for ${field.label}` }
+              : { type: "string", description: `The extracted value for ${field.label}` };
+
             properties[field.name] = {
               type: "object",
               properties: {
-                value: { type: "string", description: `The extracted value for ${field.label}` },
-                quote: { type: "string", description: `A UNIQUE, VERBATIM text snippet (5-15 words) from the document that contains this value` }
+                content: valueType,
+                confidence: { 
+                  type: "string", 
+                  enum: ["high", "medium", "low"],
+                  description: "Confidence level: high (explicitly stated), medium (inferred from context), low (ambiguous or uncertain)"
+                },
+                source_location: {
+                  type: "object",
+                  properties: {
+                    page: { type: "integer", description: "Page number where data was found (estimate if unsure)" },
+                    section: { type: "string", description: "Section heading (e.g., Methods, Results, Table 1)" },
+                    specific_location: { type: "string", description: "Specific location (e.g., paragraph 2, Table 2 Row 3)" },
+                    exact_text_reference: { type: "string", description: "VERBATIM text snippet (10-30 words) from document containing this data" }
+                  },
+                  required: ["page", "exact_text_reference"],
+                  additionalProperties: false
+                },
+                notes: { type: "string", description: "Any notes about ambiguity, assumptions, or data quality issues" }
               },
-              required: ["value", "quote"],
+              required: ["content", "confidence", "source_location"],
               additionalProperties: false
             };
           });
@@ -194,17 +235,29 @@ export const appRouter = router({
             messages: [
               {
                 role: "system",
-                content: `You are an expert clinical data extractor. Extract data from clinical trial documents with high precision.
-                
-For each field, you MUST return:
-- "value": The clean, extracted answer
-- "quote": A UNIQUE, VERBATIM text snippet (5-15 words) from the document that contains the answer. This quote will be used to locate the source in the PDF.
+                content: `You are an expert clinical data extractor following rigorous systematic review standards. Extract data from clinical trial documents with full provenance tracking.
 
-If a field cannot be found, return an empty string for both value and quote.`
+For EVERY field, you MUST return:
+- "content": The extracted value (clean, normalized)
+- "confidence": "high" (explicitly stated in text), "medium" (inferred from context), or "low" (ambiguous/uncertain)
+- "source_location": {
+    "page": Page number (estimate based on document structure if not explicit)
+    "section": Section heading where found (e.g., "Methods", "Results", "Table 1")
+    "specific_location": Precise location (e.g., "paragraph 2", "Table 2, Row 3, Column 4")
+    "exact_text_reference": VERBATIM quote (10-30 words) from document containing this data
+  }
+- "notes": Any issues with data quality, ambiguity, or assumptions made
+
+Guidelines:
+1. ACCURACY: Only extract explicitly stated information. Mark inferences as "medium" confidence.
+2. COMPLETENESS: Extract all instances, not just the first occurrence.
+3. TRANSPARENCY: Every extraction must have verifiable source location.
+4. For tables/figures: Note the specific table/figure number and row/column.
+5. If data is NOT found, set content to empty string and confidence to "low" with explanatory notes.`
               },
               {
                 role: "user",
-                content: `Extract the following fields from this clinical trial document:
+                content: `Extract the following fields from this clinical trial document with full provenance:
 
 Fields to extract:
 ${fieldsDescription}
@@ -233,18 +286,27 @@ ${input.documentText.substring(0, 50000)}`
 
           const parsed = JSON.parse(content);
           
-          // Transform to ExtractedData format (location will be added by frontend text locator)
+          // Transform to ExtractedData format with full provenance
           const extractedData: ExtractedData = {};
           for (const [key, data] of Object.entries(parsed)) {
-            const fieldData = data as { value: string; quote: string };
-            extractedData[key] = {
-              value: fieldData.value || "",
-              // Location will be populated by frontend after text grounding
+            const fieldData = data as { 
+              content: string | number | boolean; 
+              confidence: 'high' | 'medium' | 'low';
+              source_location: {
+                page: number;
+                section?: string;
+                specific_location?: string;
+                exact_text_reference: string;
+              };
+              notes?: string;
             };
-            // Store quote separately for frontend to use in text location
-            if (fieldData.quote) {
-              extractedData[`${key}_quote`] = { value: fieldData.quote };
-            }
+            extractedData[key] = {
+              value: fieldData.content ?? "",
+              confidence: fieldData.confidence || 'low',
+              source_location: fieldData.source_location,
+              notes: fieldData.notes,
+              // Location will be populated by frontend after text grounding for PDF highlighting
+            };
           }
 
           const updated = await updateExtraction(input.extractionId, ctx.user.id, {
@@ -316,6 +378,97 @@ ${input.documentText.substring(0, 50000)}`
   // ============ Schema Templates ============
   schemas: router({
     getDefault: publicProcedure.query(() => DEFAULT_EXTRACTION_SCHEMA),
+
+    generateFromPrompt: protectedProcedure
+      .input(z.object({
+        prompt: z.string().min(10, "Please provide more detail about what you want to extract"),
+        documentContext: z.string().optional(), // Optional sample of document text for better schema
+      }))
+      .mutation(async ({ ctx, input }) => {
+        try {
+          const response = await invokeLLM({
+            messages: [
+              {
+                role: "system",
+                content: `You are an expert at designing data extraction schemas for clinical trial documents and scientific papers.
+
+Your task is to analyze the user's description of what they want to extract and create an optimal extraction schema.
+
+For each field you create:
+- "name": A snake_case identifier (e.g., "study_id", "sample_size")
+- "label": A human-readable label (e.g., "Study ID", "Sample Size")
+- "type": One of "text" (short text), "textarea" (long text/paragraphs), or "number"
+- "description": A clear description to help the AI extractor understand what to look for
+
+Consider:
+1. What specific data points the user wants
+2. Common related fields they might need but didn't mention
+3. The best data type for each field
+4. Clear, unambiguous descriptions for accurate extraction`
+              },
+              {
+                role: "user",
+                content: `Create an extraction schema based on this description:
+
+"${input.prompt}"
+
+${input.documentContext ? `Here's a sample of the document to help understand the context:\n${input.documentContext.substring(0, 5000)}` : ""}
+
+Create a comprehensive schema with all relevant fields.`
+              }
+            ],
+            response_format: {
+              type: "json_schema",
+              json_schema: {
+                name: "extraction_schema",
+                strict: true,
+                schema: {
+                  type: "object",
+                  properties: {
+                    fields: {
+                      type: "array",
+                      items: {
+                        type: "object",
+                        properties: {
+                          name: { type: "string", description: "Snake_case field identifier" },
+                          label: { type: "string", description: "Human-readable label" },
+                          type: { type: "string", enum: ["text", "textarea", "number"], description: "Field data type" },
+                          description: { type: "string", description: "Description for AI extractor" }
+                        },
+                        required: ["name", "label", "type", "description"],
+                        additionalProperties: false
+                      }
+                    },
+                    reasoning: {
+                      type: "string",
+                      description: "Brief explanation of why these fields were chosen"
+                    }
+                  },
+                  required: ["fields", "reasoning"],
+                  additionalProperties: false
+                }
+              }
+            }
+          });
+
+          const content = response.choices[0]?.message?.content;
+          if (!content || typeof content !== 'string') throw new Error("No response from LLM");
+
+          const parsed = JSON.parse(content);
+          
+          return {
+            success: true,
+            schema: { fields: parsed.fields },
+            reasoning: parsed.reasoning
+          };
+        } catch (error) {
+          console.error("Schema generation failed:", error);
+          throw new TRPCError({
+            code: "INTERNAL_SERVER_ERROR",
+            message: error instanceof Error ? error.message : "Schema generation failed"
+          });
+        }
+      }),
   }),
 });
 
