@@ -1,28 +1,54 @@
-import { useState } from 'react';
-import { Plus, Trash2, GripVertical, Sparkles, Loader2, Wand2, Code, List } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { Plus, Trash2, GripVertical, Sparkles, Loader2, Wand2, Code, List, BookOpen, ChevronRight } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog';
 import { Textarea } from '@/components/ui/textarea';
+import { Badge } from '@/components/ui/badge';
+import { ScrollArea } from '@/components/ui/scroll-area';
 import { trpc } from '@/lib/trpc';
 import { toast } from 'sonner';
-import type { ExtractionSchema, ExtractionField } from '../../../drizzle/schema';
+import type { ExtractionSchema, ExtractionField, SchemaTemplate, StudyType } from '../../../drizzle/schema';
 
-type EditorMode = 'visual' | 'json' | 'prompt';
+type EditorMode = 'templates' | 'visual' | 'json' | 'prompt';
+
+const STUDY_TYPE_LABELS: Record<StudyType, string> = {
+  rct: 'RCT',
+  cohort: 'Cohort',
+  case_control: 'Case-Control',
+  cross_sectional: 'Cross-Sectional',
+  meta_analysis: 'Meta-Analysis',
+  systematic_review: 'Systematic Review',
+  case_report: 'Case Report',
+  qualitative: 'Qualitative',
+  other: 'Other',
+};
+
+const STUDY_TYPE_COLORS: Record<StudyType, string> = {
+  rct: 'bg-purple-100 text-purple-700',
+  cohort: 'bg-blue-100 text-blue-700',
+  case_control: 'bg-green-100 text-green-700',
+  cross_sectional: 'bg-amber-100 text-amber-700',
+  meta_analysis: 'bg-indigo-100 text-indigo-700',
+  systematic_review: 'bg-cyan-100 text-cyan-700',
+  case_report: 'bg-rose-100 text-rose-700',
+  qualitative: 'bg-teal-100 text-teal-700',
+  other: 'bg-slate-100 text-slate-700',
+};
 
 interface SchemaEditorProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   schema: ExtractionSchema;
   onSave: (schema: ExtractionSchema) => void;
-  documentContext?: string; // Optional document text for better AI schema generation
+  documentContext?: string;
 }
 
 export function SchemaEditor({ open, onOpenChange, schema, onSave, documentContext }: SchemaEditorProps) {
   const [fields, setFields] = useState<ExtractionField[]>(schema.fields);
-  const [mode, setMode] = useState<EditorMode>('prompt');
+  const [mode, setMode] = useState<EditorMode>('templates');
   const [jsonValue, setJsonValue] = useState('');
   const [jsonError, setJsonError] = useState<string | null>(null);
   
@@ -31,7 +57,23 @@ export function SchemaEditor({ open, onOpenChange, schema, onSave, documentConte
   const [aiReasoning, setAiReasoning] = useState<string | null>(null);
   const [generatedSchema, setGeneratedSchema] = useState<ExtractionSchema | null>(null);
 
+  // Template state
+  const [selectedTemplate, setSelectedTemplate] = useState<SchemaTemplate | null>(null);
+
+  const { data: templates, isLoading: templatesLoading } = trpc.templates.list.useQuery();
   const generateSchemaMutation = trpc.schemas.generateFromPrompt.useMutation();
+
+  // Reset state when dialog opens
+  useEffect(() => {
+    if (open) {
+      setFields(schema.fields);
+      setMode('templates');
+      setSelectedTemplate(null);
+      setGeneratedSchema(null);
+      setAiReasoning(null);
+      setPrompt('');
+    }
+  }, [open, schema.fields]);
 
   const handleAddField = () => {
     setFields([
@@ -68,6 +110,8 @@ export function SchemaEditor({ open, onOpenChange, schema, onSave, documentConte
         setJsonError('Invalid JSON format');
         return;
       }
+    } else if (mode === 'templates' && selectedTemplate) {
+      onSave(selectedTemplate.schema);
     } else if (mode === 'prompt' && generatedSchema) {
       onSave(generatedSchema);
     } else {
@@ -89,6 +133,8 @@ export function SchemaEditor({ open, onOpenChange, schema, onSave, documentConte
       }
     } else if (mode === 'prompt' && generatedSchema) {
       setFields(generatedSchema.fields);
+    } else if (mode === 'templates' && selectedTemplate) {
+      setFields(selectedTemplate.schema.fields);
     }
 
     // Prepare new mode state
@@ -123,6 +169,11 @@ export function SchemaEditor({ open, onOpenChange, schema, onSave, documentConte
     }
   };
 
+  const handleSelectTemplate = (template: SchemaTemplate) => {
+    setSelectedTemplate(template);
+    setFields(template.schema.fields);
+  };
+
   const handleUseGeneratedSchema = () => {
     if (generatedSchema) {
       setFields(generatedSchema.fields);
@@ -132,18 +183,30 @@ export function SchemaEditor({ open, onOpenChange, schema, onSave, documentConte
     }
   };
 
+  const builtInTemplates = templates?.filter(t => t.isBuiltIn) || [];
+  const userTemplates = templates?.filter(t => !t.isBuiltIn) || [];
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl max-h-[85vh] overflow-hidden flex flex-col">
+      <DialogContent className="max-w-3xl max-h-[85vh] overflow-hidden flex flex-col">
         <DialogHeader>
           <DialogTitle>Configure Extraction Schema</DialogTitle>
           <DialogDescription>
-            Define the fields you want the AI to extract from your documents.
+            Choose a template or create a custom schema for data extraction.
           </DialogDescription>
         </DialogHeader>
 
         {/* Mode Tabs */}
         <div className="flex gap-1 p-1 bg-slate-100 rounded-lg">
+          <Button
+            variant={mode === 'templates' ? 'default' : 'ghost'}
+            size="sm"
+            className="flex-1"
+            onClick={() => handleSwitchMode('templates')}
+          >
+            <BookOpen className="h-4 w-4 mr-2" />
+            Templates
+          </Button>
           <Button
             variant={mode === 'prompt' ? 'default' : 'ghost'}
             size="sm"
@@ -160,7 +223,7 @@ export function SchemaEditor({ open, onOpenChange, schema, onSave, documentConte
             onClick={() => handleSwitchMode('visual')}
           >
             <List className="h-4 w-4 mr-2" />
-            Visual Editor
+            Visual
           </Button>
           <Button
             variant={mode === 'json' ? 'default' : 'ghost'}
@@ -169,14 +232,98 @@ export function SchemaEditor({ open, onOpenChange, schema, onSave, documentConte
             onClick={() => handleSwitchMode('json')}
           >
             <Code className="h-4 w-4 mr-2" />
-            JSON Editor
+            JSON
           </Button>
         </div>
 
-        <div className="flex-1 overflow-y-auto mt-4">
+        <ScrollArea className="flex-1 mt-4">
+          {/* Templates Mode */}
+          {mode === 'templates' && (
+            <div className="space-y-4 pr-4">
+              {templatesLoading ? (
+                <div className="flex items-center justify-center py-8">
+                  <Loader2 className="h-6 w-6 animate-spin text-slate-400" />
+                </div>
+              ) : (
+                <>
+                  {/* Built-in Templates */}
+                  {builtInTemplates.length > 0 && (
+                    <div>
+                      <h3 className="text-sm font-medium text-slate-500 mb-2 flex items-center gap-2">
+                        <Sparkles className="h-4 w-4" />
+                        Built-in Templates
+                      </h3>
+                      <div className="space-y-2">
+                        {builtInTemplates.map((template) => (
+                          <TemplateItem
+                            key={template.id}
+                            template={template}
+                            isSelected={selectedTemplate?.id === template.id}
+                            onSelect={() => handleSelectTemplate(template)}
+                          />
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* User Templates */}
+                  {userTemplates.length > 0 && (
+                    <div>
+                      <h3 className="text-sm font-medium text-slate-500 mb-2">My Templates</h3>
+                      <div className="space-y-2">
+                        {userTemplates.map((template) => (
+                          <TemplateItem
+                            key={template.id}
+                            template={template}
+                            isSelected={selectedTemplate?.id === template.id}
+                            onSelect={() => handleSelectTemplate(template)}
+                          />
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Selected Template Preview */}
+                  {selectedTemplate && (
+                    <div className="border-t pt-4 mt-4">
+                      <h3 className="text-sm font-medium text-slate-900 mb-2">
+                        Selected: {selectedTemplate.name}
+                      </h3>
+                      <p className="text-sm text-slate-500 mb-3">
+                        {selectedTemplate.description || 'No description'}
+                      </p>
+                      <div className="bg-slate-50 rounded-lg p-3 max-h-[200px] overflow-y-auto">
+                        <p className="text-xs text-slate-500 mb-2">
+                          {selectedTemplate.schema.fields.length} extraction fields:
+                        </p>
+                        <div className="flex flex-wrap gap-1">
+                          {selectedTemplate.schema.fields.map((field, i) => (
+                            <Badge key={i} variant="outline" className="text-xs">
+                              {field.label}
+                            </Badge>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {templates?.length === 0 && (
+                    <div className="text-center py-8">
+                      <BookOpen className="h-12 w-12 text-slate-300 mx-auto mb-3" />
+                      <p className="text-slate-500">No templates available yet</p>
+                      <p className="text-sm text-slate-400 mt-1">
+                        Use AI Generate or Visual Editor to create a schema
+                      </p>
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
+          )}
+
           {/* AI Prompt Mode */}
           {mode === 'prompt' && (
-            <div className="space-y-4">
+            <div className="space-y-4 pr-4">
               <div className="bg-gradient-to-r from-purple-50 to-blue-50 border border-purple-200 rounded-lg p-4">
                 <div className="flex items-start gap-3">
                   <div className="bg-purple-100 p-2 rounded-lg">
@@ -275,7 +422,7 @@ export function SchemaEditor({ open, onOpenChange, schema, onSave, documentConte
 
           {/* JSON Mode */}
           {mode === 'json' && (
-            <div className="space-y-2">
+            <div className="space-y-2 pr-4">
               <Textarea
                 value={jsonValue}
                 onChange={(e) => {
@@ -293,7 +440,7 @@ export function SchemaEditor({ open, onOpenChange, schema, onSave, documentConte
 
           {/* Visual Mode */}
           {mode === 'visual' && (
-            <div className="space-y-3">
+            <div className="space-y-3 pr-4">
               {fields.map((field, index) => (
                 <div
                   key={index}
@@ -331,7 +478,7 @@ export function SchemaEditor({ open, onOpenChange, schema, onSave, documentConte
                       <Label className="text-xs">Field Type</Label>
                       <Select
                         value={field.type}
-                        onValueChange={(value: 'text' | 'textarea' | 'number') =>
+                        onValueChange={(value: 'text' | 'textarea' | 'number' | 'integer' | 'boolean') =>
                           handleUpdateField(index, { type: value })
                         }
                       >
@@ -342,6 +489,8 @@ export function SchemaEditor({ open, onOpenChange, schema, onSave, documentConte
                           <SelectItem value="text">Text</SelectItem>
                           <SelectItem value="textarea">Long Text</SelectItem>
                           <SelectItem value="number">Number</SelectItem>
+                          <SelectItem value="integer">Integer</SelectItem>
+                          <SelectItem value="boolean">Boolean</SelectItem>
                         </SelectContent>
                       </Select>
                     </div>
@@ -378,7 +527,7 @@ export function SchemaEditor({ open, onOpenChange, schema, onSave, documentConte
               </Button>
             </div>
           )}
-        </div>
+        </ScrollArea>
 
         <DialogFooter className="mt-4">
           <Button variant="outline" onClick={() => onOpenChange(false)}>
@@ -386,12 +535,67 @@ export function SchemaEditor({ open, onOpenChange, schema, onSave, documentConte
           </Button>
           <Button 
             onClick={handleSave}
-            disabled={mode === 'prompt' && !generatedSchema && fields.length === 0}
+            disabled={
+              (mode === 'templates' && !selectedTemplate) ||
+              (mode === 'prompt' && !generatedSchema && fields.length === 0) ||
+              (mode === 'visual' && fields.length === 0)
+            }
           >
-            {mode === 'prompt' && generatedSchema ? 'Use Generated Schema' : 'Save Schema'}
+            {mode === 'templates' && selectedTemplate 
+              ? 'Use Template' 
+              : mode === 'prompt' && generatedSchema 
+                ? 'Use Generated Schema' 
+                : 'Save Schema'}
           </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
+  );
+}
+
+interface TemplateItemProps {
+  template: SchemaTemplate;
+  isSelected: boolean;
+  onSelect: () => void;
+}
+
+function TemplateItem({ template, isSelected, onSelect }: TemplateItemProps) {
+  return (
+    <button
+      onClick={onSelect}
+      className={`w-full text-left p-3 rounded-lg border transition-all ${
+        isSelected 
+          ? 'border-blue-500 bg-blue-50 ring-2 ring-blue-200' 
+          : 'border-slate-200 hover:border-slate-300 hover:bg-slate-50'
+      }`}
+    >
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <div className="flex-1">
+            <div className="flex items-center gap-2">
+              <span className="font-medium text-sm text-slate-900">{template.name}</span>
+              {template.isBuiltIn && (
+                <Badge variant="secondary" className="text-xs">
+                  <Sparkles className="h-3 w-3 mr-1" />
+                  Built-in
+                </Badge>
+              )}
+            </div>
+            <div className="flex items-center gap-2 mt-1">
+              <Badge className={`text-xs ${STUDY_TYPE_COLORS[template.studyType]}`}>
+                {STUDY_TYPE_LABELS[template.studyType]}
+              </Badge>
+              <span className="text-xs text-slate-500">
+                {template.schema.fields.length} fields
+              </span>
+            </div>
+          </div>
+        </div>
+        <ChevronRight className={`h-4 w-4 transition-transform ${isSelected ? 'text-blue-500 rotate-90' : 'text-slate-400'}`} />
+      </div>
+      {template.description && (
+        <p className="text-xs text-slate-500 mt-2 line-clamp-2">{template.description}</p>
+      )}
+    </button>
   );
 }

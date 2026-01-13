@@ -60,3 +60,15 @@
 - [x] Display confidence indicators in UI (color-coded badges)
 - [x] Show exact text reference in source view
 - [x] Export with full provenance data
+
+
+## Schema Templates Feature
+
+- [x] Database: Add schema_templates table (id, name, description, studyType, schema, isBuiltIn, userId, createdAt, updatedAt)
+- [x] Backend: Template CRUD endpoints (list, get, create, update, delete)
+- [x] Backend: Built-in preset templates (RCT, Cohort Study, Case-Control, Meta-Analysis, Systematic Review)
+- [x] UI: Template selector dropdown in schema editor
+- [x] UI: Save current schema as template dialog
+- [x] UI: Template management page (view, edit, delete templates)
+- [x] UI: Template preview before applying
+- [x] Tests: Template CRUD operations

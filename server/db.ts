@@ -4,7 +4,8 @@ import {
   InsertUser, users, 
   documents, InsertDocument, Document,
   extractions, InsertExtraction, ExtractionRecord,
-  ExtractedData, ExtractionSchema
+  ExtractedData, ExtractionSchema,
+  schemaTemplates, InsertSchemaTemplate, SchemaTemplate
 } from "../drizzle/schema";
 import { ENV } from './_core/env';
 
@@ -187,4 +188,134 @@ export async function deleteExtraction(id: number, userId: number): Promise<bool
   const result = await db.delete(extractions)
     .where(and(eq(extractions.id, id), eq(extractions.userId, userId)));
   return result[0].affectedRows > 0;
+}
+
+// ============ Schema Template Queries ============
+
+import { or, isNull } from "drizzle-orm";
+
+/**
+ * Get all templates accessible to a user (their own + built-in + public)
+ */
+export async function getTemplatesForUser(userId: number): Promise<SchemaTemplate[]> {
+  const db = await getDb();
+  if (!db) return [];
+
+  return db.select().from(schemaTemplates)
+    .where(
+      or(
+        eq(schemaTemplates.userId, userId),
+        eq(schemaTemplates.isBuiltIn, true),
+        eq(schemaTemplates.isPublic, true)
+      )
+    )
+    .orderBy(desc(schemaTemplates.isBuiltIn), desc(schemaTemplates.createdAt));
+}
+
+/**
+ * Get templates by study type
+ */
+export async function getTemplatesByStudyType(userId: number, studyType: string): Promise<SchemaTemplate[]> {
+  const db = await getDb();
+  if (!db) return [];
+
+  return db.select().from(schemaTemplates)
+    .where(
+      and(
+        eq(schemaTemplates.studyType, studyType as any),
+        or(
+          eq(schemaTemplates.userId, userId),
+          eq(schemaTemplates.isBuiltIn, true),
+          eq(schemaTemplates.isPublic, true)
+        )
+      )
+    )
+    .orderBy(desc(schemaTemplates.isBuiltIn), desc(schemaTemplates.createdAt));
+}
+
+/**
+ * Get a single template by ID (with access check)
+ */
+export async function getTemplateById(id: number, userId: number): Promise<SchemaTemplate | undefined> {
+  const db = await getDb();
+  if (!db) return undefined;
+
+  const [template] = await db.select().from(schemaTemplates)
+    .where(
+      and(
+        eq(schemaTemplates.id, id),
+        or(
+          eq(schemaTemplates.userId, userId),
+          eq(schemaTemplates.isBuiltIn, true),
+          eq(schemaTemplates.isPublic, true)
+        )
+      )
+    );
+  return template;
+}
+
+/**
+ * Create a new template
+ */
+export async function createTemplate(template: InsertSchemaTemplate): Promise<SchemaTemplate> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+
+  const result = await db.insert(schemaTemplates).values(template);
+  const insertId = result[0].insertId;
+  const [created] = await db.select().from(schemaTemplates).where(eq(schemaTemplates.id, insertId));
+  return created;
+}
+
+/**
+ * Update a template (only owner can update, built-in templates cannot be updated)
+ */
+export async function updateTemplate(
+  id: number, 
+  userId: number, 
+  data: Partial<Pick<SchemaTemplate, 'name' | 'description' | 'studyType' | 'schema' | 'isPublic'>>
+): Promise<SchemaTemplate | undefined> {
+  const db = await getDb();
+  if (!db) return undefined;
+
+  // Check ownership and not built-in
+  const [existing] = await db.select().from(schemaTemplates)
+    .where(and(eq(schemaTemplates.id, id), eq(schemaTemplates.userId, userId), eq(schemaTemplates.isBuiltIn, false)));
+  
+  if (!existing) return undefined;
+
+  await db.update(schemaTemplates)
+    .set(data)
+    .where(eq(schemaTemplates.id, id));
+
+  const [updated] = await db.select().from(schemaTemplates).where(eq(schemaTemplates.id, id));
+  return updated;
+}
+
+/**
+ * Delete a template (only owner can delete, built-in templates cannot be deleted)
+ */
+export async function deleteTemplate(id: number, userId: number): Promise<boolean> {
+  const db = await getDb();
+  if (!db) return false;
+
+  const result = await db.delete(schemaTemplates)
+    .where(and(
+      eq(schemaTemplates.id, id), 
+      eq(schemaTemplates.userId, userId),
+      eq(schemaTemplates.isBuiltIn, false)
+    ));
+  return result[0].affectedRows > 0;
+}
+
+/**
+ * Get built-in templates only
+ */
+export async function getBuiltInTemplates(): Promise<SchemaTemplate[]> {
+  const db = await getDb();
+  if (!db) return [];
+
+  return db.select().from(schemaTemplates)
+    .where(eq(schemaTemplates.isBuiltIn, true))
+    .orderBy(schemaTemplates.name);
 }

@@ -6,11 +6,12 @@ import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 import { 
   createDocument, getDocumentsByUser, getDocumentById, deleteDocument,
-  createExtraction, getExtractionsByDocument, getExtractionById, updateExtraction, deleteExtraction
+  createExtraction, getExtractionsByDocument, getExtractionById, updateExtraction, deleteExtraction,
+  getTemplatesForUser, getTemplatesByStudyType, getTemplateById, createTemplate, updateTemplate, deleteTemplate, getBuiltInTemplates
 } from "./db";
 import { storagePut } from "./storage";
 import { invokeLLM } from "./_core/llm";
-import { DEFAULT_EXTRACTION_SCHEMA, ExtractionSchema, ExtractedData, LocationData } from "../drizzle/schema";
+import { DEFAULT_EXTRACTION_SCHEMA, ExtractionSchema, ExtractedData, LocationData, STUDY_TYPES, StudyType } from "../drizzle/schema";
 import { nanoid } from "nanoid";
 
 // Schema validators
@@ -376,6 +377,86 @@ ${input.documentText.substring(0, 50000)}`
   }),
 
   // ============ Schema Templates ============
+  templates: router({
+    /** List all templates accessible to the user */
+    list: protectedProcedure
+      .input(z.object({
+        studyType: z.enum(["rct", "cohort", "case_control", "cross_sectional", "meta_analysis", "systematic_review", "case_report", "qualitative", "other"]).optional(),
+      }).optional())
+      .query(async ({ ctx, input }) => {
+        if (input?.studyType) {
+          return getTemplatesByStudyType(ctx.user.id, input.studyType);
+        }
+        return getTemplatesForUser(ctx.user.id);
+      }),
+
+    /** Get a single template by ID */
+    get: protectedProcedure
+      .input(z.object({ id: z.number() }))
+      .query(async ({ ctx, input }) => {
+        const template = await getTemplateById(input.id, ctx.user.id);
+        if (!template) throw new TRPCError({ code: "NOT_FOUND", message: "Template not found" });
+        return template;
+      }),
+
+    /** Create a new template */
+    create: protectedProcedure
+      .input(z.object({
+        name: z.string().min(1, "Name is required").max(256),
+        description: z.string().optional(),
+        studyType: z.enum(["rct", "cohort", "case_control", "cross_sectional", "meta_analysis", "systematic_review", "case_report", "qualitative", "other"]),
+        schema: extractionSchemaValidator,
+        isPublic: z.boolean().optional(),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        const template = await createTemplate({
+          userId: ctx.user.id,
+          name: input.name,
+          description: input.description,
+          studyType: input.studyType,
+          schema: input.schema,
+          isPublic: input.isPublic || false,
+          isBuiltIn: false,
+        });
+        return template;
+      }),
+
+    /** Update a template (only owner can update) */
+    update: protectedProcedure
+      .input(z.object({
+        id: z.number(),
+        name: z.string().min(1).max(256).optional(),
+        description: z.string().optional(),
+        studyType: z.enum(["rct", "cohort", "case_control", "cross_sectional", "meta_analysis", "systematic_review", "case_report", "qualitative", "other"]).optional(),
+        schema: extractionSchemaValidator.optional(),
+        isPublic: z.boolean().optional(),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        const { id, ...data } = input;
+        const updated = await updateTemplate(id, ctx.user.id, data as any);
+        if (!updated) throw new TRPCError({ code: "NOT_FOUND", message: "Template not found or you don't have permission to edit it" });
+        return updated;
+      }),
+
+    /** Delete a template (only owner can delete) */
+    delete: protectedProcedure
+      .input(z.object({ id: z.number() }))
+      .mutation(async ({ ctx, input }) => {
+        const deleted = await deleteTemplate(input.id, ctx.user.id);
+        if (!deleted) throw new TRPCError({ code: "NOT_FOUND", message: "Template not found or you don't have permission to delete it" });
+        return { success: true };
+      }),
+
+    /** Get study type options */
+    getStudyTypes: publicProcedure.query(() => {
+      return STUDY_TYPES.map(type => ({
+        value: type,
+        label: type.split('_').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ')
+      }));
+    }),
+  }),
+
+  // ============ Schema Generation ============
   schemas: router({
     getDefault: publicProcedure.query(() => DEFAULT_EXTRACTION_SCHEMA),
 

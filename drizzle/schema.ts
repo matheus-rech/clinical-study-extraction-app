@@ -1,4 +1,4 @@
-import { int, mysqlEnum, mysqlTable, text, timestamp, varchar, json, bigint } from "drizzle-orm/mysql-core";
+import { int, mysqlEnum, mysqlTable, text, timestamp, varchar, json, bigint, boolean } from "drizzle-orm/mysql-core";
 
 /**
  * Core user table backing auth flow.
@@ -57,6 +57,52 @@ export const extractions = mysqlTable("extractions", {
 
 export type ExtractionRecord = typeof extractions.$inferSelect;
 export type InsertExtraction = typeof extractions.$inferInsert;
+
+/**
+ * Study types for template categorization
+ */
+export const STUDY_TYPES = [
+  "rct",           // Randomized Controlled Trial
+  "cohort",        // Cohort Study
+  "case_control",  // Case-Control Study
+  "cross_sectional", // Cross-Sectional Study
+  "meta_analysis", // Meta-Analysis
+  "systematic_review", // Systematic Review
+  "case_report",   // Case Report/Series
+  "qualitative",   // Qualitative Study
+  "other"          // Other study types
+] as const;
+
+export type StudyType = typeof STUDY_TYPES[number];
+
+/**
+ * Schema templates table - stores reusable extraction schemas
+ */
+export const schemaTemplates = mysqlTable("schema_templates", {
+  id: int("id").autoincrement().primaryKey(),
+  /** User who created the template (null for built-in templates) */
+  userId: int("userId"),
+  /** Template name */
+  name: varchar("name", { length: 256 }).notNull(),
+  /** Template description */
+  description: text("description"),
+  /** Study type this template is designed for */
+  studyType: mysqlEnum("studyType", [
+    "rct", "cohort", "case_control", "cross_sectional",
+    "meta_analysis", "systematic_review", "case_report", "qualitative", "other"
+  ]).default("other").notNull(),
+  /** The extraction schema JSON */
+  schema: json("schema").$type<ExtractionSchema>().notNull(),
+  /** Whether this is a built-in system template */
+  isBuiltIn: boolean("isBuiltIn").default(false).notNull(),
+  /** Whether this template is public (visible to all users) */
+  isPublic: boolean("isPublic").default(false).notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type SchemaTemplate = typeof schemaTemplates.$inferSelect;
+export type InsertSchemaTemplate = typeof schemaTemplates.$inferInsert;
 
 // ============================================================================
 // RIGOROUS CLINICAL EXTRACTION SCHEMA TYPES

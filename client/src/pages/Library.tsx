@@ -1,6 +1,7 @@
 import { useState, useRef } from 'react';
 import { useLocation } from 'wouter';
-import { FileText, Upload, Trash2, Loader2, Calendar, HardDrive, ExternalLink } from 'lucide-react';
+import { FileText, Upload, Trash2, Loader2, Calendar, HardDrive, ExternalLink, BookOpen } from 'lucide-react';
+import { Link } from 'wouter';
 import { trpc } from '@/lib/trpc';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -112,7 +113,13 @@ export default function Library() {
               </div>
             </div>
             
-            <div>
+            <div className="flex items-center gap-3">
+              <Link href="/templates">
+                <Button variant="outline">
+                  <BookOpen className="h-4 w-4 mr-2" />
+                  Templates
+                </Button>
+              </Link>
               <input
                 ref={fileInputRef}
                 type="file"

@@ -88,6 +88,60 @@ vi.mock("./db", () => ({
   deleteExtraction: vi.fn().mockResolvedValue(true),
   upsertUser: vi.fn(),
   getUserByOpenId: vi.fn(),
+  // Template mocks
+  getTemplatesForUser: vi.fn().mockResolvedValue([
+    {
+      id: 1,
+      userId: null,
+      name: "Clinical Trial RCT",
+      description: "Template for randomized controlled trials",
+      studyType: "rct",
+      schema: { fields: [{ name: "study_id", label: "Study ID", type: "text" }] },
+      isBuiltIn: true,
+      isPublic: true,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    },
+  ]),
+  getTemplatesByStudyType: vi.fn().mockResolvedValue([]),
+  getTemplateById: vi.fn().mockResolvedValue({
+    id: 1,
+    userId: null,
+    name: "Clinical Trial RCT",
+    description: "Template for randomized controlled trials",
+    studyType: "rct",
+    schema: { fields: [{ name: "study_id", label: "Study ID", type: "text" }] },
+    isBuiltIn: true,
+    isPublic: true,
+    createdAt: new Date(),
+    updatedAt: new Date(),
+  }),
+  createTemplate: vi.fn().mockResolvedValue({
+    id: 2,
+    userId: 1,
+    name: "My Custom Template",
+    description: "Custom extraction template",
+    studyType: "cohort",
+    schema: { fields: [{ name: "sample_size", label: "Sample Size", type: "number" }] },
+    isBuiltIn: false,
+    isPublic: false,
+    createdAt: new Date(),
+    updatedAt: new Date(),
+  }),
+  updateTemplate: vi.fn().mockResolvedValue({
+    id: 2,
+    userId: 1,
+    name: "Updated Template",
+    description: "Updated description",
+    studyType: "cohort",
+    schema: { fields: [{ name: "sample_size", label: "Sample Size", type: "number" }] },
+    isBuiltIn: false,
+    isPublic: false,
+    createdAt: new Date(),
+    updatedAt: new Date(),
+  }),
+  deleteTemplate: vi.fn().mockResolvedValue(true),
+  getBuiltInTemplates: vi.fn().mockResolvedValue([]),
 }));
 
 type AuthenticatedUser = NonNullable<TrpcContext["user"]>;
@@ -252,5 +306,88 @@ describe("schemas router", () => {
     expect(result.schema.fields).toHaveLength(2);
     expect(result.schema.fields[0].name).toBe("study_id");
     expect(result.reasoning).toBeDefined();
+  });
+});
+
+// ============ Schema Template Tests ============
+
+describe("templates router", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("lists templates for authenticated user", async () => {
+    const ctx = createAuthContext();
+    const caller = appRouter.createCaller(ctx);
+
+    const result = await caller.templates.list();
+    
+    expect(Array.isArray(result)).toBe(true);
+    expect(result.length).toBeGreaterThan(0);
+    expect(result[0].name).toBe("Clinical Trial RCT");
+  });
+
+  it("gets a template by id", async () => {
+    const ctx = createAuthContext();
+    const caller = appRouter.createCaller(ctx);
+
+    const result = await caller.templates.get({ id: 1 });
+    
+    expect(result.id).toBe(1);
+    expect(result.name).toBe("Clinical Trial RCT");
+    expect(result.studyType).toBe("rct");
+  });
+
+  it("creates a new template", async () => {
+    const ctx = createAuthContext();
+    const caller = appRouter.createCaller(ctx);
+
+    const result = await caller.templates.create({
+      name: "My Custom Template",
+      description: "Custom extraction template",
+      studyType: "cohort",
+      schema: {
+        fields: [{ name: "sample_size", label: "Sample Size", type: "number" }]
+      },
+      isPublic: false,
+    });
+
+    expect(result.id).toBe(2);
+    expect(result.name).toBe("My Custom Template");
+    expect(result.isBuiltIn).toBe(false);
+  });
+
+  it("updates a template", async () => {
+    const ctx = createAuthContext();
+    const caller = appRouter.createCaller(ctx);
+
+    const result = await caller.templates.update({
+      id: 2,
+      name: "Updated Template",
+      description: "Updated description",
+    });
+
+    expect(result.name).toBe("Updated Template");
+  });
+
+  it("deletes a template", async () => {
+    const ctx = createAuthContext();
+    const caller = appRouter.createCaller(ctx);
+
+    const result = await caller.templates.delete({ id: 2 });
+
+    expect(result.success).toBe(true);
+  });
+
+  it("returns all study type options", async () => {
+    const ctx = createAuthContext();
+    const caller = appRouter.createCaller(ctx);
+
+    const result = await caller.templates.getStudyTypes();
+    
+    expect(Array.isArray(result)).toBe(true);
+    expect(result.length).toBe(9); // 9 study types
+    expect(result[0]).toHaveProperty("value");
+    expect(result[0]).toHaveProperty("label");
   });
 });

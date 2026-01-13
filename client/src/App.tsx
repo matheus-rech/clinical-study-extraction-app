@@ -7,6 +7,7 @@ import { ThemeProvider } from "./contexts/ThemeContext";
 import Home from "./pages/Home";
 import Library from "./pages/Library";
 import Extract from "./pages/Extract";
+import Templates from "./pages/Templates";
 import { useAuth } from "./_core/hooks/useAuth";
 import { Loader2 } from "lucide-react";
 
@@ -40,6 +41,9 @@ function Router() {
       </Route>
       <Route path="/extract/:id">
         {() => <ProtectedRoute component={Extract} />}
+      </Route>
+      <Route path="/templates">
+        {() => <ProtectedRoute component={Templates} />}
       </Route>
       <Route path="/404" component={NotFound} />
       <Route component={NotFound} />
