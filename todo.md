@@ -72,3 +72,40 @@
 - [x] UI: Template management page (view, edit, delete templates)
 - [x] UI: Template preview before applying
 - [x] Tests: Template CRUD operations
+
+
+## Multi-Agent Extraction & Comparison Feature
+
+### Backend - Multi-Provider AI Integration
+- [x] Add Claude API integration (Anthropic) for extraction
+- [x] Add OpenRouter API integration for third provider access
+- [x] Create unified extraction interface for all 3 providers
+- [x] Store extraction results per agent/provider in database
+- [x] Add agent metadata (provider, model, timestamp) to extractions
+
+### Extraction Comparison View
+- [x] Side-by-side comparison UI for 3 agent extractions
+- [x] Field-level agreement indicators (all agree, partial, disagree)
+- [x] Inter-rater reliability metrics (percent agreement)
+- [x] Highlight discrepancies between agents
+- [x] Allow user to select "consensus" value or override
+
+### Full JSON Schema Form Rendering
+- [ ] Render nested object fields (e.g., source_location with page, section, etc.)
+- [ ] Render array fields with add/remove items
+- [ ] Render confidence level selectors (high/medium/low)
+- [ ] Render all field types from clinical schema (extractedFieldString, extractedFieldNumber, etc.)
+- [ ] Group fields by section (Study ID, PICO-T, Baseline, etc.)
+
+### CSV/Excel Export
+- [x] Export single extraction to CSV
+- [x] Export comparison data with all 3 agent values
+- [x] Include confidence levels and source locations in export
+- [x] Support TSV format (Excel compatible)
+
+
+### Paginated Sidebar (Step-by-Step Form)
+- [x] Paginated sidebar: separate extraction phases into pages/tabs
+- [x] Step navigation with previous/next buttons
+- [x] Progress indicators showing filled fields per step
+- [x] Overall progress bar at the top

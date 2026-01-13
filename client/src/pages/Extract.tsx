@@ -1,20 +1,37 @@
-import { useState, useCallback, useEffect, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams, useLocation } from 'wouter';
-import { FileText, Download, ArrowLeft, Loader2 } from 'lucide-react';
+import { FileText, Download, ArrowLeft, Loader2, Bot, Sparkles, FileSpreadsheet, LayoutGrid, List } from 'lucide-react';
 import { trpc } from '@/lib/trpc';
 import { Button } from '@/components/ui/button';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { toast } from 'sonner';
 import { PdfViewer, locateTextInPdf, HighlightLocation } from '@/components/PdfViewer';
 import { ExtractionSidebar } from '@/components/ExtractionSidebar';
+import { ClinicalExtractionForm } from '@/components/ClinicalExtractionForm';
+import { AgentComparisonView } from '@/components/AgentComparisonView';
 import { SchemaEditor } from '@/components/SchemaEditor';
 import { ExportModal } from '@/components/ExportModal';
+import { ExportDataModal } from '@/components/ExportDataModal';
 import { SummaryModal } from '@/components/SummaryModal';
-import { DEFAULT_EXTRACTION_SCHEMA, type ExtractionSchema, type ExtractedData, type ExtractedFieldData, type LocationData } from '../../../drizzle/schema';
+import { 
+  DEFAULT_EXTRACTION_SCHEMA, CLINICAL_MASTER_SCHEMA,
+  type ExtractionSchema, type ExtractedData, type ExtractedFieldData, 
+  type LocationData, type ClinicalStudyExtraction, type AIProvider 
+} from '../../../drizzle/schema';
 
 declare global {
   interface Window {
     pdfjsLib: any;
   }
+}
+
+type ViewMode = 'simple' | 'clinical' | 'comparison';
+
+interface AgentExtractionResult {
+  provider: AIProvider;
+  extractedData: ExtractedData | null;
+  status: 'pending' | 'extracting' | 'completed' | 'failed';
+  error?: string;
 }
 
 export default function Extract() {
@@ -23,18 +40,24 @@ export default function Extract() {
   const documentId = params.id ? parseInt(params.id) : null;
 
   // State
-  const [schema, setSchema] = useState<ExtractionSchema>(DEFAULT_EXTRACTION_SCHEMA);
-  const [extractedData, setExtractedData] = useState<ExtractedData | null>(null);
+  const [schema, setSchema] = useState<ExtractionSchema>(CLINICAL_MASTER_SCHEMA);
+  const [extractedData, setExtractedData] = useState<ExtractedData | ClinicalStudyExtraction | null>(null);
   const [documentText, setDocumentText] = useState<string>('');
   const [highlightLocation, setHighlightLocation] = useState<HighlightLocation | null>(null);
   const [isExtracting, setIsExtracting] = useState(false);
   const [isSummarizing, setIsSummarizing] = useState(false);
   const [summary, setSummary] = useState<string | null>(null);
   const [extractionId, setExtractionId] = useState<number | null>(null);
+  const [viewMode, setViewMode] = useState<ViewMode>('clinical');
+
+  // Multi-agent extraction state
+  const [agentExtractions, setAgentExtractions] = useState<AgentExtractionResult[]>([]);
+  const [isMultiAgentExtracting, setIsMultiAgentExtracting] = useState(false);
 
   // Modals
   const [showSchemaEditor, setShowSchemaEditor] = useState(false);
   const [showExport, setShowExport] = useState(false);
+  const [showDataExport, setShowDataExport] = useState(false);
   const [showSummary, setShowSummary] = useState(false);
 
   // PDF reference for text location
@@ -55,6 +78,7 @@ export default function Extract() {
   const createExtractionMutation = trpc.extractions.create.useMutation();
   const updateExtractionMutation = trpc.extractions.update.useMutation();
   const extractMutation = trpc.ai.extract.useMutation();
+  const multiAgentExtractMutation = trpc.ai.multiAgentExtract.useMutation();
   const summarizeMutation = trpc.ai.summarize.useMutation();
 
   // Load existing extraction if available
@@ -92,7 +116,7 @@ export default function Extract() {
     return extraction.id;
   };
 
-  // AI Auto-Extract
+  // Single Agent AI Auto-Extract
   const handleExtract = async () => {
     if (!documentText) {
       toast.error('Please wait for the PDF to load');
@@ -126,6 +150,66 @@ export default function Extract() {
       toast.error('Extraction failed. Please try again.');
     } finally {
       setIsExtracting(false);
+    }
+  };
+
+  // Multi-Agent Extraction (3 providers)
+  const handleMultiAgentExtract = async () => {
+    if (!documentText) {
+      toast.error('Please wait for the PDF to load');
+      return;
+    }
+
+    setIsMultiAgentExtracting(true);
+    setViewMode('comparison');
+    
+    // Initialize agent states
+    const providers: AIProvider[] = ['gemini', 'claude', 'openrouter'];
+    setAgentExtractions(providers.map(p => ({
+      provider: p,
+      extractedData: null,
+      status: 'pending',
+    })));
+
+    try {
+      const extId = await ensureExtraction();
+
+      // Update status to extracting
+      setAgentExtractions(prev => prev.map(ae => ({ ...ae, status: 'extracting' as const })));
+
+      const result = await multiAgentExtractMutation.mutateAsync({
+        extractionId: extId,
+        documentText,
+        providers,
+      });
+
+      // Update with results
+      setAgentExtractions(result.results.map(r => ({
+        provider: r.provider as AIProvider,
+        extractedData: r.extractedData as ExtractedData | null,
+        status: r.status as 'pending' | 'extracting' | 'completed' | 'failed',
+        error: r.error || undefined,
+      })));
+
+      // Set consensus as main extracted data
+      if (result.consensus) {
+        const groundedData = await groundExtractedData(result.consensus as ExtractedData);
+        setExtractedData(groundedData);
+        
+        await updateExtractionMutation.mutateAsync({
+          id: extId,
+          extractedData: groundedData,
+        });
+      }
+
+      const successCount = result.results.filter(r => r.status === 'completed').length;
+      toast.success(`Multi-agent extraction completed (${successCount}/${providers.length} agents)`);
+    } catch (error) {
+      console.error('Multi-agent extraction failed:', error);
+      toast.error('Multi-agent extraction failed. Please try again.');
+      setAgentExtractions(prev => prev.map(ae => ({ ...ae, status: 'failed' as const })));
+    } finally {
+      setIsMultiAgentExtracting(false);
     }
   };
 
@@ -211,12 +295,40 @@ export default function Extract() {
     });
   };
 
-  // Update field value
+  // View source by page and text (for clinical form)
+  const handleViewSourceByPage = (page: number, exactText: string) => {
+    // Try to find the text in the PDF and highlight it
+    if (window.pdfjsLib && document?.s3Url) {
+      const loadingTask = window.pdfjsLib.getDocument(document.s3Url);
+      loadingTask.promise.then(async (pdf: any) => {
+        const location = await locateTextInPdf(pdf, exactText);
+        if (location) {
+          setHighlightLocation({
+            page: location.page,
+            rects: [location.rect],
+          });
+        } else {
+          // Just go to the page
+          setHighlightLocation({
+            page,
+            rects: [],
+          });
+        }
+      });
+    } else {
+      setHighlightLocation({
+        page,
+        rects: [],
+      });
+    }
+  };
+
+  // Update field value (simple mode)
   const handleUpdateField = async (fieldName: string, value: string) => {
     const newData: ExtractedData = {
-      ...extractedData,
+      ...(extractedData as ExtractedData),
       [fieldName]: {
-        ...extractedData?.[fieldName],
+        ...(extractedData as ExtractedData)?.[fieldName],
         value,
       },
     };
@@ -235,12 +347,56 @@ export default function Extract() {
     }
   };
 
+  // Update clinical data (clinical mode)
+  const handleUpdateClinicalData = async (path: string, value: any) => {
+    // Deep update the data at the given path
+    const newData = { ...(extractedData as ClinicalStudyExtraction) };
+    const parts = path.split('.');
+    let current: any = newData;
+    
+    for (let i = 0; i < parts.length - 1; i++) {
+      const part = parts[i];
+      if (!current[part]) {
+        current[part] = {};
+      }
+      current = current[part];
+    }
+    
+    current[parts[parts.length - 1]] = value;
+    setExtractedData(newData);
+
+    // Auto-save
+    if (extractionId) {
+      try {
+        await updateExtractionMutation.mutateAsync({
+          id: extractionId,
+          extractedData: newData as any,
+        });
+      } catch (error) {
+        console.error('Failed to save:', error);
+      }
+    }
+  };
+
   // Save schema
   const handleSaveSchema = async (newSchema: ExtractionSchema) => {
     setSchema(newSchema);
     // Clear extracted data when schema changes
     setExtractedData(null);
     setExtractionId(null);
+    
+    // Switch view mode based on schema
+    if (newSchema.useClinicalMasterSchema) {
+      setViewMode('clinical');
+    } else {
+      setViewMode('simple');
+    }
+  };
+
+  // Select consensus from comparison
+  const handleSelectConsensus = (data: ExtractedData) => {
+    setExtractedData(data);
+    toast.success('Consensus value selected');
   };
 
   if (!documentId) {
@@ -274,14 +430,66 @@ export default function Extract() {
             <h1 className="font-semibold text-sm truncate max-w-[300px]">
               {document?.filename || 'Document'}
             </h1>
-            <p className="text-xs text-slate-500">PDF Data Extractor</p>
+            <p className="text-xs text-slate-500">Clinical Data Extraction</p>
           </div>
         </div>
 
-        <Button variant="outline" onClick={() => setShowExport(true)}>
-          <Download className="h-4 w-4 mr-2" />
-          Export
-        </Button>
+        <div className="flex items-center gap-2">
+          {/* View Mode Toggle */}
+          <div className="flex items-center bg-slate-100 rounded-lg p-1">
+            <Button
+              variant={viewMode === 'simple' ? 'default' : 'ghost'}
+              size="sm"
+              className="h-7 px-2"
+              onClick={() => setViewMode('simple')}
+            >
+              <List className="h-3.5 w-3.5 mr-1" />
+              Simple
+            </Button>
+            <Button
+              variant={viewMode === 'clinical' ? 'default' : 'ghost'}
+              size="sm"
+              className="h-7 px-2"
+              onClick={() => setViewMode('clinical')}
+            >
+              <LayoutGrid className="h-3.5 w-3.5 mr-1" />
+              Clinical
+            </Button>
+            <Button
+              variant={viewMode === 'comparison' ? 'default' : 'ghost'}
+              size="sm"
+              className="h-7 px-2"
+              onClick={() => setViewMode('comparison')}
+            >
+              <Bot className="h-3.5 w-3.5 mr-1" />
+              Compare
+            </Button>
+          </div>
+
+          {/* Multi-Agent Extract Button */}
+          <Button 
+            variant="outline" 
+            onClick={handleMultiAgentExtract}
+            disabled={!documentText || isMultiAgentExtracting}
+          >
+            {isMultiAgentExtracting ? (
+              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+            ) : (
+              <Sparkles className="h-4 w-4 mr-2" />
+            )}
+            3-Agent Extract
+          </Button>
+
+          {/* Export Buttons */}
+          <Button variant="outline" onClick={() => setShowDataExport(true)}>
+            <FileSpreadsheet className="h-4 w-4 mr-2" />
+            CSV
+          </Button>
+          <Button variant="outline" onClick={() => setShowExport(true)}>
+            <Download className="h-4 w-4 mr-2" />
+            JSON
+          </Button>
+        </div>
       </header>
 
       {/* Main Content */}
@@ -294,19 +502,42 @@ export default function Extract() {
           className="flex-1"
         />
 
-        {/* Extraction Sidebar */}
-        <ExtractionSidebar
-          schema={schema}
-          extractedData={extractedData}
-          isExtracting={isExtracting}
-          isSummarizing={isSummarizing}
-          onExtract={handleExtract}
-          onSummarize={handleSummarize}
-          onViewSource={handleViewSource}
-          onUpdateField={handleUpdateField}
-          onEditSchema={() => setShowSchemaEditor(true)}
-          disabled={!documentText}
-        />
+        {/* Right Sidebar - Different views */}
+        <div className="w-[420px] border-l bg-white flex flex-col overflow-hidden">
+          {viewMode === 'simple' && (
+            <ExtractionSidebar
+              schema={schema}
+              extractedData={extractedData as ExtractedData}
+              isExtracting={isExtracting}
+              isSummarizing={isSummarizing}
+              onExtract={handleExtract}
+              onSummarize={handleSummarize}
+              onViewSource={handleViewSource}
+              onUpdateField={handleUpdateField}
+              onEditSchema={() => setShowSchemaEditor(true)}
+              disabled={!documentText}
+            />
+          )}
+          
+          {viewMode === 'clinical' && (
+            <ClinicalExtractionForm
+              data={extractedData as ClinicalStudyExtraction}
+              onUpdate={handleUpdateClinicalData}
+              onViewSource={handleViewSourceByPage}
+              isReadOnly={false}
+            />
+          )}
+          
+          {viewMode === 'comparison' && (
+            <AgentComparisonView
+              agentExtractions={agentExtractions}
+              consensusData={extractedData as ExtractedData}
+              onSelectConsensus={handleSelectConsensus}
+              onViewSource={handleViewSourceByPage}
+              isLoading={isMultiAgentExtracting}
+            />
+          )}
+        </div>
       </div>
 
       {/* Modals */}
@@ -321,9 +552,20 @@ export default function Extract() {
       <ExportModal
         open={showExport}
         onOpenChange={setShowExport}
-        extractedData={extractedData}
+        extractedData={extractedData as ExtractedData}
         schema={schema}
         documentName={document?.filename}
+      />
+
+      <ExportDataModal
+        isOpen={showDataExport}
+        onClose={() => setShowDataExport(false)}
+        extractedData={extractedData}
+        agentExtractions={agentExtractions.filter(ae => ae.status === 'completed').map(ae => ({
+          provider: ae.provider,
+          extractedData: ae.extractedData,
+        }))}
+        documentName={document?.filename || 'document'}
       />
 
       <SummaryModal

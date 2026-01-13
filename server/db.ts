@@ -4,8 +4,8 @@ import {
   InsertUser, users, 
   documents, InsertDocument, Document,
   extractions, InsertExtraction, ExtractionRecord,
-  ExtractedData, ExtractionSchema,
-  schemaTemplates, InsertSchemaTemplate, SchemaTemplate
+  schemaTemplates, InsertSchemaTemplate, SchemaTemplate,
+  agentExtractions, InsertAgentExtraction, AgentExtraction, AIProvider
 } from "../drizzle/schema";
 import { ENV } from './_core/env';
 
@@ -318,4 +318,79 @@ export async function getBuiltInTemplates(): Promise<SchemaTemplate[]> {
   return db.select().from(schemaTemplates)
     .where(eq(schemaTemplates.isBuiltIn, true))
     .orderBy(schemaTemplates.name);
+}
+
+// ============ Agent Extraction Queries ============
+
+/**
+ * Create an agent extraction record
+ */
+export async function createAgentExtraction(data: InsertAgentExtraction): Promise<AgentExtraction> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+
+  const result = await db.insert(agentExtractions).values(data);
+  const insertId = result[0].insertId;
+  const [created] = await db.select().from(agentExtractions).where(eq(agentExtractions.id, insertId));
+  return created;
+}
+
+/**
+ * Get all agent extractions for an extraction session
+ */
+export async function getAgentExtractionsByExtractionId(extractionId: number): Promise<AgentExtraction[]> {
+  const db = await getDb();
+  if (!db) return [];
+
+  return db.select().from(agentExtractions)
+    .where(eq(agentExtractions.extractionId, extractionId))
+    .orderBy(agentExtractions.provider);
+}
+
+/**
+ * Get agent extraction by extraction ID and provider
+ */
+export async function getAgentExtractionByProvider(
+  extractionId: number, 
+  provider: AIProvider
+): Promise<AgentExtraction | undefined> {
+  const db = await getDb();
+  if (!db) return undefined;
+
+  const [result] = await db.select().from(agentExtractions)
+    .where(and(
+      eq(agentExtractions.extractionId, extractionId),
+      eq(agentExtractions.provider, provider)
+    ));
+  return result;
+}
+
+/**
+ * Update an agent extraction
+ */
+export async function updateAgentExtraction(
+  id: number,
+  data: Partial<Pick<AgentExtraction, 'extractedData' | 'status' | 'errorMessage' | 'processingTimeMs' | 'modelName'>>
+): Promise<AgentExtraction | undefined> {
+  const db = await getDb();
+  if (!db) return undefined;
+
+  await db.update(agentExtractions)
+    .set(data)
+    .where(eq(agentExtractions.id, id));
+
+  const [updated] = await db.select().from(agentExtractions).where(eq(agentExtractions.id, id));
+  return updated;
+}
+
+/**
+ * Delete all agent extractions for an extraction session
+ */
+export async function deleteAgentExtractionsByExtractionId(extractionId: number): Promise<boolean> {
+  const db = await getDb();
+  if (!db) return false;
+
+  const result = await db.delete(agentExtractions)
+    .where(eq(agentExtractions.extractionId, extractionId));
+  return result[0].affectedRows > 0;
 }

@@ -73,6 +73,43 @@ export const STUDY_TYPES = [
   "other"          // Other study types
 ] as const;
 
+/**
+ * AI Provider types for multi-agent extraction
+ */
+export const AI_PROVIDERS = [
+  "gemini",        // Google Gemini (built-in)
+  "claude",        // Anthropic Claude
+  "openrouter"     // OpenRouter (access to various models)
+] as const;
+
+export type AIProvider = typeof AI_PROVIDERS[number];
+
+/**
+ * Agent extractions table - stores extraction results per AI agent
+ */
+export const agentExtractions = mysqlTable("agent_extractions", {
+  id: int("id").autoincrement().primaryKey(),
+  /** Parent extraction session */
+  extractionId: int("extractionId").notNull(),
+  /** AI provider used */
+  provider: mysqlEnum("provider", ["gemini", "claude", "openrouter"]).notNull(),
+  /** Model name/version used */
+  modelName: varchar("modelName", { length: 128 }),
+  /** Extracted data from this agent */
+  extractedData: json("extractedData").$type<ExtractedData>(),
+  /** Processing time in milliseconds */
+  processingTimeMs: int("processingTimeMs"),
+  /** Status of this agent's extraction */
+  status: mysqlEnum("status", ["pending", "extracting", "completed", "failed"]).default("pending").notNull(),
+  /** Error message if failed */
+  errorMessage: text("errorMessage"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type AgentExtraction = typeof agentExtractions.$inferSelect;
+export type InsertAgentExtraction = typeof agentExtractions.$inferInsert;
+
 export type StudyType = typeof STUDY_TYPES[number];
 
 /**
